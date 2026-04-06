@@ -1,0 +1,131 @@
+package queue
+
+import (
+	"context"
+	"log/slog"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/user/clotho/internal/engine"
+	"github.com/user/clotho/internal/store"
+)
+
+const (
+	pollInterval      = 500 * time.Millisecond
+	heartbeatInterval = 10 * time.Second
+)
+
+// Worker polls the job queue, executes pipeline workflows, and manages heartbeats.
+type Worker struct {
+	jobs             store.JobStore
+	executions       store.ExecutionStore
+	pipelineVersions store.PipelineVersionStore
+	engine           *engine.Engine
+}
+
+// NewWorker creates a Worker with all required dependencies.
+func NewWorker(
+	jobs store.JobStore,
+	executions store.ExecutionStore,
+	pipelineVersions store.PipelineVersionStore,
+	eng *engine.Engine,
+) *Worker {
+	return &Worker{
+		jobs:             jobs,
+		executions:       executions,
+		pipelineVersions: pipelineVersions,
+		engine:           eng,
+	}
+}
+
+// Run starts the worker loop. It polls for jobs every 500ms and processes them.
+// Blocks until the context is cancelled.
+func (w *Worker) Run(ctx context.Context) {
+	slog.Info("worker started")
+	defer slog.Info("worker stopped")
+
+	// Start zombie reaper in background
+	go w.reapLoop(ctx)
+
+	ticker := time.NewTicker(pollInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			w.processNext(ctx)
+		}
+	}
+}
+
+func (w *Worker) processNext(ctx context.Context) {
+	job, err := w.jobs.Dequeue(ctx)
+	if err != nil {
+		slog.Error("failed to dequeue job", "error", err)
+		return
+	}
+	if job == nil {
+		return // no pending jobs
+	}
+
+	slog.Info("processing job", "job_id", job.ID, "execution_id", job.ExecutionID)
+
+	// Start heartbeat goroutine
+	heartbeatCtx, heartbeatCancel := context.WithCancel(ctx)
+	defer heartbeatCancel()
+	go w.heartbeatLoop(heartbeatCtx, job.ID)
+
+	// Load execution
+	execution, err := w.executions.Get(ctx, job.ExecutionID)
+	if err != nil {
+		slog.Error("failed to load execution", "error", err, "execution_id", job.ExecutionID)
+		if failErr := w.jobs.Fail(ctx, job.ID, err.Error()); failErr != nil {
+			slog.Error("failed to mark job as failed", "error", failErr)
+		}
+		return
+	}
+
+	// Load pipeline version
+	pv, err := w.pipelineVersions.Get(ctx, execution.PipelineVersionID)
+	if err != nil {
+		slog.Error("failed to load pipeline version", "error", err, "version_id", execution.PipelineVersionID)
+		if failErr := w.jobs.Fail(ctx, job.ID, err.Error()); failErr != nil {
+			slog.Error("failed to mark job as failed", "error", failErr)
+		}
+		return
+	}
+
+	// Execute the workflow
+	if err := w.engine.ExecuteWorkflow(ctx, execution, pv.Graph); err != nil {
+		slog.Error("workflow execution failed", "error", err, "execution_id", execution.ID)
+		if failErr := w.jobs.Fail(ctx, job.ID, err.Error()); failErr != nil {
+			slog.Error("failed to mark job as failed", "error", failErr)
+		}
+		return
+	}
+
+	// Mark job completed
+	if err := w.jobs.Complete(ctx, job.ID); err != nil {
+		slog.Error("failed to mark job as completed", "error", err)
+	}
+
+	slog.Info("job completed", "job_id", job.ID, "execution_id", job.ExecutionID)
+}
+
+func (w *Worker) heartbeatLoop(ctx context.Context, jobID uuid.UUID) {
+	ticker := time.NewTicker(heartbeatInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := w.jobs.Heartbeat(ctx, jobID); err != nil {
+				slog.Warn("heartbeat failed", "job_id", jobID, "error", err)
+			}
+		}
+	}
+}

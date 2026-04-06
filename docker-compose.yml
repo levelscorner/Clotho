@@ -1,0 +1,32 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: clotho
+      POSTGRES_PASSWORD: clotho
+      POSTGRES_DB: clotho
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U clotho"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  clotho:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      MODE: all
+      PORT: "8080"
+      DATABASE_URL: postgres://clotho:clotho@postgres:5432/clotho?sslmode=disable
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    ports:
+      - "8080:8080"
+
+volumes:
+  pgdata:

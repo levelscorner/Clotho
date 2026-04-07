@@ -72,10 +72,10 @@ function AppContent() {
 
   // Fetch providers and check availability
   useEffect(() => {
-    fetch('/api/providers')
-      .then((res) => res.json())
-      .then((data: ProviderInfo[]) => {
-        const hasAvailable = data.some((p) => p.available);
+    api.get<ProviderInfo[]>('/providers')
+      .then((data) => {
+        const arr = Array.isArray(data) ? data : [];
+        const hasAvailable = arr.some((p) => p.available);
         setNoProvidersAvailable(!hasAvailable);
       })
       .catch(() => {

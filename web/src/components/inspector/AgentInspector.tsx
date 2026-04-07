@@ -109,10 +109,9 @@ export function AgentInspector({ nodeId, label, config }: AgentInspectorProps) {
   const [credentials, setCredentials] = useState<Credential[]>([]);
 
   useEffect(() => {
-    fetch('/api/providers')
-      .then((res) => res.json())
-      .then((data: ProviderInfo[]) => {
-        setProviders(data);
+    api.get<ProviderInfo[]>('/providers')
+      .then((data) => {
+        setProviders(Array.isArray(data) ? data : []);
         setProvidersLoaded(true);
       })
       .catch(() => {

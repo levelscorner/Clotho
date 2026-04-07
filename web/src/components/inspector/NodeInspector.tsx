@@ -1,8 +1,9 @@
 import { usePipelineStore } from '../../stores/pipelineStore';
 import { useExecutionStore } from '../../stores/executionStore';
-import type { AgentNodeConfig, ToolNodeConfig } from '../../lib/types';
+import type { AgentNodeConfig, ToolNodeConfig, MediaNodeConfig } from '../../lib/types';
 import { AgentInspector } from './AgentInspector';
 import { ToolInspector } from './ToolInspector';
+import { MediaInspector } from './MediaInspector';
 import { ExecutionInspector } from './ExecutionInspector';
 
 // ---------------------------------------------------------------------------
@@ -69,6 +70,12 @@ export function NodeInspector() {
           nodeId={node.id}
           label={node.data.label}
           config={node.data.config as AgentNodeConfig}
+        />
+      ) : node.data.nodeType === 'media' ? (
+        <MediaInspector
+          nodeId={node.id}
+          label={node.data.label}
+          config={node.data.config as MediaNodeConfig}
         />
       ) : (
         <ToolInspector

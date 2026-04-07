@@ -80,6 +80,103 @@
   border: 1px solid #27293d;
 }
 
+/* Media node -------------------------------------------------------------- */
+
+.clotho-node--media {
+  border: 1px solid #2e2e38;
+}
+
+.clotho-node--media-image .clotho-node__header {
+  background: linear-gradient(135deg, #1a1a20, #1e1c18);
+  color: #f59e0b;
+}
+
+.clotho-node--media-video .clotho-node__header {
+  background: linear-gradient(135deg, #1a1a20, #1e1818);
+  color: #ef4444;
+}
+
+.clotho-node--media-audio .clotho-node__header {
+  background: linear-gradient(135deg, #1a1a20, #181e1e);
+  color: #06b6d4;
+}
+
+/* Media preview ----------------------------------------------------------- */
+
+.clotho-node__media-preview {
+  padding: 6px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.clotho-node__media-preview img {
+  max-height: 64px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.clotho-node__media-preview--video {
+  position: relative;
+}
+
+.clotho-node__media-play-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #e2e8f0;
+  font-size: 12px;
+}
+
+.clotho-node__media-audio-placeholder {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  color: #55556a;
+  font-size: 11px;
+}
+
+/* Progress bar ------------------------------------------------------------ */
+
+.clotho-node__progress-bar {
+  height: 3px;
+  margin: 6px 10px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.clotho-node__progress-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: #e5a84b;
+  animation: progress-indeterminate 1.5s ease-in-out infinite;
+}
+
+@keyframes progress-indeterminate {
+  0% {
+    width: 0%;
+    margin-left: 0%;
+  }
+  50% {
+    width: 40%;
+    margin-left: 30%;
+  }
+  100% {
+    width: 0%;
+    margin-left: 100%;
+  }
+}
+
 /* Execution status overlays ----------------------------------------------- */
 
 .clotho-node--running {

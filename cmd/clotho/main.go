@@ -17,6 +17,7 @@ import (
 	"github.com/user/clotho/internal/domain"
 	"github.com/user/clotho/internal/engine"
 	"github.com/user/clotho/internal/llm"
+	"github.com/user/clotho/internal/media"
 	"github.com/user/clotho/internal/queue"
 	"github.com/user/clotho/internal/store"
 	"github.com/user/clotho/internal/store/postgres"
@@ -88,10 +89,23 @@ func main() {
 
 	slog.Info("LLM providers available", "providers", llmRegistry.List())
 
+	// Create media provider registry
+	mediaRegistry := media.NewRegistry()
+	if cfg.ReplicateToken != "" {
+		mediaRegistry.Register("replicate", media.NewReplicate(cfg.ReplicateToken))
+	}
+	if cfg.OpenAIKey != "" {
+		mediaRegistry.Register("openai", media.NewDALLE(cfg.OpenAIKey))
+		mediaRegistry.Register("openai-tts", media.NewTTS(cfg.OpenAIKey))
+	}
+
+	slog.Info("media providers available", "providers", mediaRegistry.List())
+
 	// Create executor registry and register executors
 	registry := engine.NewExecutorRegistry()
 	registry.Register(domain.NodeTypeAgent, engine.NewAgentExecutor(llmRegistry, credentialStore))
 	registry.Register(domain.NodeTypeTool, engine.NewToolExecutor())
+	registry.Register(domain.NodeTypeMedia, media.NewMediaExecutor(mediaRegistry, credentialStore))
 
 	// Create event bus
 	eventBus := engine.NewEventBus()

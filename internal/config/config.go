@@ -17,8 +17,9 @@ type Config struct {
 	OpenAIKey     string        // OpenAI API key
 	GeminiKey     string        // Google AI Studio API key
 	OpenRouterKey string        // OpenRouter API key
-	OllamaURL     string        // Ollama base URL
-	LogLevel      slog.Level    // log level
+	OllamaURL      string        // Ollama base URL
+	ReplicateToken string        // Replicate API token
+	LogLevel       slog.Level    // log level
 	JWTSecret     string        // JWT signing secret
 	JWTExpiry     time.Duration // JWT access token expiry
 	MasterKey     string        // hex-encoded 32-byte envelope encryption master key
@@ -33,8 +34,9 @@ func Load() (*Config, error) {
 		OpenAIKey:     getEnv("OPENAI_API_KEY", ""),
 		GeminiKey:     getEnv("GEMINI_API_KEY", ""),
 		OpenRouterKey: getEnv("OPENROUTER_API_KEY", ""),
-		OllamaURL:     getEnv("OLLAMA_URL", "http://localhost:11434"),
-		LogLevel:      parseLogLevel(getEnv("LOG_LEVEL", "info")),
+		OllamaURL:      getEnv("OLLAMA_URL", "http://localhost:11434"),
+		ReplicateToken: getEnv("REPLICATE_API_TOKEN", ""),
+		LogLevel:       parseLogLevel(getEnv("LOG_LEVEL", "info")),
 	}
 
 	cfg.Mode = strings.ToLower(cfg.Mode)

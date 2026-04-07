@@ -3,6 +3,8 @@ import type {
   AgentPreset,
   AgentNodeConfig,
   ToolNodeConfig,
+  MediaNodeConfig,
+  MediaType,
   Port,
   NodeType,
   ToolType,
@@ -15,7 +17,7 @@ import { api } from '../../lib/api';
 
 interface DragPayload {
   nodeType: NodeType;
-  config: AgentNodeConfig | ToolNodeConfig;
+  config: AgentNodeConfig | ToolNodeConfig | MediaNodeConfig;
   ports: Port[];
   label?: string;
 }
@@ -85,6 +87,70 @@ const TOOLS: ToolItem[] = [
   { label: 'Text Box', toolType: 'text_box', icon: '\u{1f4dd}' },
   { label: 'Image Box', toolType: 'image_box', icon: '\u{1f5bc}' },
   { label: 'Video Box', toolType: 'video_box', icon: '\u{1f3ac}' },
+];
+
+// ---------------------------------------------------------------------------
+// Media palette items
+// ---------------------------------------------------------------------------
+
+interface MediaItem {
+  label: string;
+  mediaType: MediaType;
+  icon: string;
+  defaultConfig: MediaNodeConfig;
+  ports: Port[];
+}
+
+const MEDIA_ITEMS: MediaItem[] = [
+  {
+    label: 'Image Generator',
+    mediaType: 'image',
+    icon: '\u{1F4F7}',
+    defaultConfig: {
+      media_type: 'image',
+      provider: 'replicate',
+      model: 'flux-1.1-pro',
+      prompt: '',
+      aspect_ratio: '1:1',
+      num_outputs: 1,
+    },
+    ports: [
+      { id: 'in_image_prompt', name: 'Prompt', type: 'image_prompt', direction: 'input', required: true },
+      { id: 'out_image', name: 'Image', type: 'image', direction: 'output', required: false },
+    ],
+  },
+  {
+    label: 'Video Generator',
+    mediaType: 'video',
+    icon: '\u{1F3AC}',
+    defaultConfig: {
+      media_type: 'video',
+      provider: 'replicate',
+      model: 'stable-video-diffusion',
+      prompt: '',
+      aspect_ratio: '16:9',
+    },
+    ports: [
+      { id: 'in_video_prompt', name: 'Prompt', type: 'video_prompt', direction: 'input', required: true },
+      { id: 'out_video', name: 'Video', type: 'video', direction: 'output', required: false },
+    ],
+  },
+  {
+    label: 'Voice / TTS',
+    mediaType: 'audio',
+    icon: '\u{1F50A}',
+    defaultConfig: {
+      media_type: 'audio',
+      provider: 'openai',
+      model: 'tts-1',
+      prompt: '',
+      voice: 'alloy',
+    },
+    ports: [
+      { id: 'in_audio_prompt', name: 'Prompt', type: 'audio_prompt', direction: 'input', required: true },
+      { id: 'out_audio', name: 'Audio', type: 'audio', direction: 'output', required: false },
+    ],
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -162,6 +228,15 @@ export function NodePalette() {
     });
   }, []);
 
+  const onMediaDragStart = useCallback((event: DragEvent, item: MediaItem) => {
+    setDragData(event, {
+      nodeType: 'media',
+      config: item.defaultConfig,
+      ports: item.ports,
+      label: item.label,
+    });
+  }, []);
+
   return (
     <aside
       style={{
@@ -222,6 +297,30 @@ export function NodePalette() {
           key={item.toolType}
           draggable
           onDragStart={(e) => onToolDragStart(e, item)}
+          style={cardStyle}
+          onMouseOver={(e) => {
+            (e.currentTarget as HTMLDivElement).style.borderColor = '#334155';
+          }}
+          onMouseOut={(e) => {
+            (e.currentTarget as HTMLDivElement).style.borderColor =
+              'transparent';
+          }}
+        >
+          <span style={{ fontSize: 16 }} aria-hidden>
+            {item.icon}
+          </span>
+          {item.label}
+        </div>
+      ))}
+
+      {/* Media section */}
+      <div style={{ ...sectionTitle, marginTop: 8 }}>Media</div>
+
+      {MEDIA_ITEMS.map((item) => (
+        <div
+          key={item.mediaType}
+          draggable
+          onDragStart={(e) => onMediaDragStart(e, item)}
           style={cardStyle}
           onMouseOver={(e) => {
             (e.currentTarget as HTMLDivElement).style.borderColor = '#334155';

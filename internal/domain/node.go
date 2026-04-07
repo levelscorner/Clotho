@@ -8,6 +8,7 @@ type NodeType string
 const (
 	NodeTypeAgent NodeType = "agent"
 	NodeTypeTool  NodeType = "tool"
+	NodeTypeMedia NodeType = "media"
 )
 
 // PortType defines the data type flowing through a connection.

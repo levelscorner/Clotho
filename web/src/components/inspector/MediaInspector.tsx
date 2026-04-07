@@ -1,0 +1,280 @@
+import { useCallback, useEffect, useState } from 'react';
+import type { MediaNodeConfig, Credential } from '../../lib/types';
+import { usePipelineStore } from '../../stores/pipelineStore';
+import { api } from '../../lib/api';
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const PROVIDERS = ['replicate', 'openai', 'elevenlabs'] as const;
+
+const MODELS_BY_PROVIDER: Record<string, string[]> = {
+  replicate: ['flux-1.1-pro', 'sdxl', 'stable-video-diffusion', 'musicgen'],
+  openai: ['dall-e-3', 'dall-e-2', 'tts-1', 'tts-1-hd'],
+  elevenlabs: ['eleven_multilingual_v2', 'eleven_turbo_v2'],
+};
+
+const ASPECT_RATIOS = ['1:1', '16:9', '9:16', '4:3'] as const;
+
+const VOICES = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'] as const;
+
+// ---------------------------------------------------------------------------
+// Styles
+// ---------------------------------------------------------------------------
+
+const fieldGroup: React.CSSProperties = {
+  marginBottom: 12,
+};
+
+const labelStyle: React.CSSProperties = {
+  display: 'block',
+  fontSize: 11,
+  fontWeight: 600,
+  color: '#64748b',
+  marginBottom: 4,
+  textTransform: 'uppercase',
+  letterSpacing: '0.04em',
+};
+
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '6px 8px',
+  borderRadius: 4,
+  border: '1px solid #334155',
+  background: '#1a1c2e',
+  color: '#e2e8f0',
+  fontSize: 13,
+};
+
+const textareaStyle: React.CSSProperties = {
+  ...inputStyle,
+  minHeight: 100,
+  resize: 'vertical',
+};
+
+// ---------------------------------------------------------------------------
+// Props
+// ---------------------------------------------------------------------------
+
+interface MediaInspectorProps {
+  nodeId: string;
+  label: string;
+  config: MediaNodeConfig;
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
+export function MediaInspector({ nodeId, label, config }: MediaInspectorProps) {
+  const updateNodeConfig = usePipelineStore((s) => s.updateNodeConfig);
+  const updateNodeLabel = usePipelineStore((s) => s.updateNodeLabel);
+
+  const [credentials, setCredentials] = useState<Credential[]>([]);
+
+  useEffect(() => {
+    api.credentials
+      .list()
+      .then((creds) => setCredentials(creds))
+      .catch(() => {
+        // credentials not available
+      });
+  }, []);
+
+  const update = useCallback(
+    (patch: Partial<MediaNodeConfig>) => {
+      updateNodeConfig(nodeId, (prev) => ({ ...prev, ...patch }));
+    },
+    [nodeId, updateNodeConfig],
+  );
+
+  const handleProviderChange = useCallback(
+    (provider: string) => {
+      const models = MODELS_BY_PROVIDER[provider] ?? [];
+      update({ provider, model: models[0] ?? '' });
+    },
+    [update],
+  );
+
+  const modelsForProvider = MODELS_BY_PROVIDER[config.provider] ?? [];
+  const showAspectRatio = config.media_type === 'image' || config.media_type === 'video';
+  const showVoice = config.media_type === 'audio';
+  const showNumOutputs = config.media_type === 'image';
+
+  return (
+    <div>
+      <div
+        style={{
+          fontSize: 12,
+          fontWeight: 700,
+          color: '#94a3b8',
+          textTransform: 'uppercase',
+          letterSpacing: '0.06em',
+          marginBottom: 14,
+          paddingBottom: 8,
+          borderBottom: '1px solid #1e2030',
+        }}
+      >
+        Media Configuration
+      </div>
+
+      <div style={fieldGroup}>
+        <label style={labelStyle}>Label</label>
+        <input
+          style={inputStyle}
+          value={label}
+          onChange={(e) => updateNodeLabel(nodeId, e.target.value)}
+        />
+      </div>
+
+      <div style={fieldGroup}>
+        <label style={labelStyle}>Provider</label>
+        <select
+          style={inputStyle}
+          value={config.provider}
+          onChange={(e) => handleProviderChange(e.target.value)}
+        >
+          {PROVIDERS.map((p) => (
+            <option key={p} value={p}>
+              {p}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div style={fieldGroup}>
+        <label style={labelStyle}>Model</label>
+        <select
+          style={inputStyle}
+          value={config.model}
+          onChange={(e) => update({ model: e.target.value })}
+        >
+          {modelsForProvider.map((m) => (
+            <option key={m} value={m}>
+              {m}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div style={fieldGroup}>
+        <label style={labelStyle}>Prompt Template</label>
+        <textarea
+          style={textareaStyle}
+          value={config.prompt}
+          onChange={(e) => update({ prompt: e.target.value })}
+          placeholder="Use {{input}} to reference incoming data"
+        />
+      </div>
+
+      {showAspectRatio && (
+        <div style={fieldGroup}>
+          <label style={labelStyle}>Aspect Ratio</label>
+          <select
+            style={inputStyle}
+            value={config.aspect_ratio ?? '1:1'}
+            onChange={(e) => update({ aspect_ratio: e.target.value })}
+          >
+            {ASPECT_RATIOS.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {showVoice && (
+        <div style={fieldGroup}>
+          <label style={labelStyle}>Voice</label>
+          <select
+            style={inputStyle}
+            value={config.voice ?? 'alloy'}
+            onChange={(e) => update({ voice: e.target.value })}
+          >
+            {VOICES.map((v) => (
+              <option key={v} value={v}>
+                {v}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {showNumOutputs && (
+        <div style={fieldGroup}>
+          <label style={labelStyle}>Number of Outputs</label>
+          <select
+            style={inputStyle}
+            value={config.num_outputs ?? 1}
+            onChange={(e) => update({ num_outputs: parseInt(e.target.value, 10) })}
+          >
+            {[1, 2, 3, 4].map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      <div style={fieldGroup}>
+        <label style={labelStyle}>Cost Cap ($)</label>
+        <input
+          type="number"
+          style={inputStyle}
+          value={config.cost_cap ?? ''}
+          min={0}
+          step={0.01}
+          placeholder="No limit"
+          onChange={(e) =>
+            update({
+              cost_cap: e.target.value ? parseFloat(e.target.value) : undefined,
+            })
+          }
+        />
+      </div>
+
+      <div style={fieldGroup}>
+        <label style={labelStyle}>API Key</label>
+        {credentials.length > 0 ? (
+          <select
+            style={inputStyle}
+            value={config.credential_id ?? ''}
+            onChange={(e) =>
+              update({
+                credential_id: e.target.value || undefined,
+              })
+            }
+          >
+            <option value="">Use server default</option>
+            {credentials.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.provider} — {c.label}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <div
+            style={{
+              fontSize: 12,
+              color: '#55556a',
+              padding: '6px 0',
+            }}
+          >
+            No API keys saved.{' '}
+            <span
+              style={{
+                color: '#e5a84b',
+                cursor: 'pointer',
+              }}
+            >
+              Add one in Settings
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

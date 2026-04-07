@@ -12,8 +12,9 @@ interface BaseNodeProps {
   id: string;
   children: React.ReactNode;
   ports: Port[];
-  variant: 'agent' | 'tool';
+  variant: 'agent' | 'tool' | 'media';
   selected?: boolean;
+  className?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -26,19 +27,21 @@ function BaseNodeInner({
   ports,
   variant,
   selected,
+  className,
 }: BaseNodeProps) {
   const stepResult = useExecutionStore((s) => s.stepResults.get(id));
   const status: ExecutionStatus | undefined = stepResult?.status;
 
   const statusClass = status ? ` clotho-node--${status}` : '';
   const selectedClass = selected ? ' selected' : '';
+  const extraClass = className ? ` ${className}` : '';
 
   const inputPorts = ports.filter((p) => p.direction === 'input');
   const outputPorts = ports.filter((p) => p.direction === 'output');
 
   return (
     <div
-      className={`clotho-node clotho-node--${variant}${statusClass}${selectedClass}`}
+      className={`clotho-node clotho-node--${variant}${statusClass}${selectedClass}${extraClass}`}
     >
       {/* Input handles */}
       {inputPorts.map((port, i) => (

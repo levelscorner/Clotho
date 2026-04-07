@@ -10,6 +10,7 @@ import {
 import type {
   AgentNodeConfig,
   ToolNodeConfig,
+  MediaNodeConfig,
   Port,
   PipelineNodeData,
   NodeType,
@@ -17,6 +18,7 @@ import type {
 import { usePipelineStore } from '../../stores/pipelineStore';
 import { AgentNode } from './nodes/AgentNode';
 import { ToolNode } from './nodes/ToolNode';
+import { MediaNode } from './nodes/MediaNode';
 
 // ---------------------------------------------------------------------------
 // Node type registry -- defined OUTSIDE the component to avoid recreation
@@ -25,6 +27,7 @@ import { ToolNode } from './nodes/ToolNode';
 const nodeTypes: NodeTypes = {
   agentNode: AgentNode,
   toolNode: ToolNode,
+  mediaNode: MediaNode,
 };
 
 // ---------------------------------------------------------------------------
@@ -33,7 +36,7 @@ const nodeTypes: NodeTypes = {
 
 interface DragPayload {
   nodeType: NodeType;
-  config: AgentNodeConfig | ToolNodeConfig;
+  config: AgentNodeConfig | ToolNodeConfig | MediaNodeConfig;
   ports: Port[];
   label?: string;
 }

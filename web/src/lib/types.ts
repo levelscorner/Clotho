@@ -15,7 +15,7 @@ export type PortType =
 
 export type PortDirection = 'input' | 'output';
 
-export type NodeType = 'agent' | 'tool';
+export type NodeType = 'agent' | 'tool' | 'media';
 
 export type ToolType = 'text_box' | 'image_box' | 'video_box';
 
@@ -90,6 +90,25 @@ export interface ToolNodeConfig {
 }
 
 // ---------------------------------------------------------------------------
+// Media node configuration
+// ---------------------------------------------------------------------------
+
+export type MediaType = 'image' | 'video' | 'audio';
+
+export interface MediaNodeConfig {
+  media_type: MediaType;
+  provider: string;
+  model: string;
+  credential_id?: string;
+  prompt: string;
+  aspect_ratio?: string;
+  voice?: string;
+  duration?: number;
+  num_outputs?: number;
+  cost_cap?: number;
+}
+
+// ---------------------------------------------------------------------------
 // Graph primitives
 // ---------------------------------------------------------------------------
 
@@ -99,7 +118,7 @@ export interface NodeInstance {
   label: string;
   position: Position;
   ports: Port[];
-  config: AgentNodeConfig | ToolNodeConfig;
+  config: AgentNodeConfig | ToolNodeConfig | MediaNodeConfig;
 }
 
 export interface Edge {
@@ -218,7 +237,15 @@ export type ToolNodeData = {
   config: ToolNodeConfig;
 };
 
-export type PipelineNodeData = AgentNodeData | ToolNodeData;
+export type MediaNodeData = {
+  [key: string]: unknown;
+  nodeType: 'media';
+  label: string;
+  ports: Port[];
+  config: MediaNodeConfig;
+};
+
+export type PipelineNodeData = AgentNodeData | ToolNodeData | MediaNodeData;
 
 // ---------------------------------------------------------------------------
 // Provider info (from GET /api/providers)

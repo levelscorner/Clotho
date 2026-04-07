@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { AgentNodeConfig, TaskType, PortType, ProviderInfo } from '../../lib/types';
+import type { AgentNodeConfig, TaskType, PortType, ProviderInfo, Credential } from '../../lib/types';
 import { usePipelineStore } from '../../stores/pipelineStore';
+import { api } from '../../lib/api';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -105,6 +106,7 @@ export function AgentInspector({ nodeId, label, config }: AgentInspectorProps) {
 
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [providersLoaded, setProvidersLoaded] = useState(false);
+  const [credentials, setCredentials] = useState<Credential[]>([]);
 
   useEffect(() => {
     fetch('/api/providers')
@@ -115,6 +117,13 @@ export function AgentInspector({ nodeId, label, config }: AgentInspectorProps) {
       })
       .catch(() => {
         setProvidersLoaded(true);
+      });
+
+    api.credentials
+      .list()
+      .then((creds) => setCredentials(creds))
+      .catch(() => {
+        // credentials not available
       });
   }, []);
 
@@ -244,6 +253,46 @@ export function AgentInspector({ nodeId, label, config }: AgentInspectorProps) {
             </option>
           ))}
         </select>
+      </div>
+
+      <div style={fieldGroup}>
+        <label style={labelStyle}>API Key</label>
+        {credentials.length > 0 ? (
+          <select
+            style={inputStyle}
+            value={config.credential_id ?? ''}
+            onChange={(e) =>
+              update({
+                credential_id: e.target.value || undefined,
+              })
+            }
+          >
+            <option value="">Use server default</option>
+            {credentials.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.provider} — {c.label}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <div
+            style={{
+              fontSize: 12,
+              color: '#55556a',
+              padding: '6px 0',
+            }}
+          >
+            No API keys saved.{' '}
+            <span
+              style={{
+                color: '#e5a84b',
+                cursor: 'pointer',
+              }}
+            >
+              Add one in Settings
+            </span>
+          </div>
+        )}
       </div>
 
       <div style={fieldGroup}>

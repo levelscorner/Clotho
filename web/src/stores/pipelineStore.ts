@@ -13,6 +13,7 @@ import type {
   Position,
   AgentNodeConfig,
   ToolNodeConfig,
+  MediaNodeConfig,
   PipelineNodeData,
   PipelineGraph,
   NodeType,
@@ -91,7 +92,7 @@ interface PipelineState {
   addNode: (
     nodeType: NodeType,
     position: Position,
-    config: AgentNodeConfig | ToolNodeConfig,
+    config: AgentNodeConfig | ToolNodeConfig | MediaNodeConfig,
     ports: Port[],
     label?: string,
   ) => void;
@@ -99,8 +100,8 @@ interface PipelineState {
   updateNodeConfig: (
     nodeId: string,
     updater: (
-      prev: AgentNodeConfig | ToolNodeConfig,
-    ) => AgentNodeConfig | ToolNodeConfig,
+      prev: AgentNodeConfig | ToolNodeConfig | MediaNodeConfig,
+    ) => AgentNodeConfig | ToolNodeConfig | MediaNodeConfig,
   ) => void;
   updateNodeLabel: (nodeId: string, label: string) => void;
   onNodesChange: (changes: NodeChange<PipelineNode>[]) => void;
@@ -145,16 +146,29 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
             ports,
             config: config as AgentNodeConfig,
           }
-        : {
-            nodeType: 'tool' as const,
-            label: label ?? 'Tool',
-            ports,
-            config: config as ToolNodeConfig,
-          };
+        : nodeType === 'media'
+          ? {
+              nodeType: 'media' as const,
+              label: label ?? 'Media',
+              ports,
+              config: config as MediaNodeConfig,
+            }
+          : {
+              nodeType: 'tool' as const,
+              label: label ?? 'Tool',
+              ports,
+              config: config as ToolNodeConfig,
+            };
+
+    const rfTypeMap: Record<NodeType, string> = {
+      agent: 'agentNode',
+      tool: 'toolNode',
+      media: 'mediaNode',
+    };
 
     const newNode: PipelineNode = {
       id,
-      type: nodeType === 'agent' ? 'agentNode' : 'toolNode',
+      type: rfTypeMap[nodeType],
       position,
       data,
     };
@@ -187,12 +201,14 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
     set((state) => ({
       nodes: state.nodes.map((n): PipelineNode => {
         if (n.id !== nodeId) return n;
-        const prevConfig = n.data.config as AgentNodeConfig | ToolNodeConfig;
+        const prevConfig = n.data.config as AgentNodeConfig | ToolNodeConfig | MediaNodeConfig;
         const newConfig = updater(prevConfig);
         const newData: PipelineNodeData =
           n.data.nodeType === 'agent'
             ? { ...n.data, nodeType: 'agent' as const, config: newConfig as AgentNodeConfig }
-            : { ...n.data, nodeType: 'tool' as const, config: newConfig as ToolNodeConfig };
+            : n.data.nodeType === 'media'
+              ? { ...n.data, nodeType: 'media' as const, config: newConfig as MediaNodeConfig }
+              : { ...n.data, nodeType: 'tool' as const, config: newConfig as ToolNodeConfig };
         return { ...n, data: newData };
       }),
       isDirty: true,

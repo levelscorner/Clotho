@@ -22,6 +22,7 @@ type Config struct {
 	JWTSecret     string        // JWT signing secret
 	JWTExpiry     time.Duration // JWT access token expiry
 	MasterKey     string        // hex-encoded 32-byte envelope encryption master key
+	AdminPassword string        // admin user password (from ADMIN_PASSWORD env var)
 }
 
 func Load() (*Config, error) {
@@ -54,6 +55,9 @@ func Load() (*Config, error) {
 	if cfg.MasterKey == "" {
 		slog.Warn("CLOTHO_MASTER_KEY not set, credentials will be stored without encryption (dev mode only)")
 	}
+
+	// Admin password
+	cfg.AdminPassword = getEnv("ADMIN_PASSWORD", "clotho123")
 
 	return cfg, nil
 }

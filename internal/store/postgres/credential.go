@@ -55,11 +55,11 @@ func (s *CredentialStore) Create(ctx context.Context, c domain.Credential) (doma
 	return c, nil
 }
 
-func (s *CredentialStore) Get(ctx context.Context, id uuid.UUID) (domain.Credential, error) {
+func (s *CredentialStore) Get(ctx context.Context, id, tenantID uuid.UUID) (domain.Credential, error) {
 	var c domain.Credential
 	err := s.pool.QueryRow(ctx,
 		`SELECT id, tenant_id, provider, encrypted_value, encrypted_dek, nonce, label, created_at
-		 FROM credentials WHERE id = $1`, id,
+		 FROM credentials WHERE id = $1 AND tenant_id = $2`, id, tenantID,
 	).Scan(&c.ID, &c.TenantID, &c.Provider, &c.EncryptedValue, &c.EncryptedDEK, &c.Nonce, &c.Label, &c.CreatedAt)
 	if err != nil {
 		return domain.Credential{}, fmt.Errorf("credential get: %w", err)
@@ -68,8 +68,8 @@ func (s *CredentialStore) Get(ctx context.Context, id uuid.UUID) (domain.Credent
 }
 
 // GetDecrypted retrieves a credential and decrypts its API key for executor use.
-func (s *CredentialStore) GetDecrypted(ctx context.Context, id uuid.UUID) (string, error) {
-	c, err := s.Get(ctx, id)
+func (s *CredentialStore) GetDecrypted(ctx context.Context, id, tenantID uuid.UUID) (string, error) {
+	c, err := s.Get(ctx, id, tenantID)
 	if err != nil {
 		return "", err
 	}

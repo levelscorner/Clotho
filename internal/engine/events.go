@@ -2,6 +2,7 @@ package engine
 
 import (
 	"encoding/json"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -50,7 +51,7 @@ func (b *EventBus) Subscribe(executionID uuid.UUID) <-chan Event {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	ch := make(chan Event, 64)
+	ch := make(chan Event, 1024)
 	b.subscribers[executionID] = append(b.subscribers[executionID], ch)
 	return ch
 }
@@ -86,7 +87,10 @@ func (b *EventBus) Publish(executionID uuid.UUID, event Event) {
 		select {
 		case ch <- event:
 		default:
-			// subscriber buffer full, drop event
+			slog.Warn("event dropped: subscriber buffer full",
+				"execution_id", executionID,
+				"event_type", event.Type,
+				"node_id", event.NodeID)
 		}
 	}
 }

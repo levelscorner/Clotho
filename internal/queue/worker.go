@@ -78,7 +78,7 @@ func (w *Worker) processNext(ctx context.Context) {
 	go w.heartbeatLoop(heartbeatCtx, job.ID)
 
 	// Load execution
-	execution, err := w.executions.Get(ctx, job.ExecutionID)
+	execution, err := w.executions.GetByID(ctx, job.ExecutionID)
 	if err != nil {
 		slog.Error("failed to load execution", "error", err, "execution_id", job.ExecutionID)
 		if failErr := w.jobs.Fail(ctx, job.ID, err.Error()); failErr != nil {

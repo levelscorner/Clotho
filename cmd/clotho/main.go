@@ -11,12 +11,14 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/user/clotho/internal/api"
+	"github.com/user/clotho/internal/auth"
 	"github.com/user/clotho/internal/config"
 	"github.com/user/clotho/internal/crypto"
 	"github.com/user/clotho/internal/domain"
 	"github.com/user/clotho/internal/engine"
 	"github.com/user/clotho/internal/llm"
 	"github.com/user/clotho/internal/queue"
+	"github.com/user/clotho/internal/store"
 	"github.com/user/clotho/internal/store/postgres"
 	"github.com/user/clotho/migrations"
 )
@@ -67,6 +69,9 @@ func main() {
 	refreshTokenStore := postgres.NewRefreshTokenStore(pool)
 	workerID := uuid.New().String()
 	jobStore := postgres.NewJobStore(pool, workerID)
+
+	// Ensure admin user exists with configured password
+	ensureAdminUser(ctx, userStore, cfg)
 
 	// Create LLM provider registry
 	llmRegistry := llm.NewRegistry()
@@ -158,4 +163,44 @@ func runWorker(ctx context.Context, worker *queue.Worker) {
 	slog.Info("starting worker")
 	worker.Run(ctx)
 	slog.Info("worker stopped")
+}
+
+func ensureAdminUser(ctx context.Context, users store.UserStore, cfg *config.Config) {
+	const adminEmail = "admin@clotho.dev"
+
+	hash, err := auth.HashPassword(cfg.AdminPassword)
+	if err != nil {
+		slog.Error("failed to hash admin password", "error", err)
+		return
+	}
+
+	existing, err := users.GetByEmail(ctx, adminEmail)
+	if err != nil {
+		// User does not exist, create
+		tenantID := uuid.New()
+		if _, err := users.Create(ctx, domain.User{
+			TenantID:     tenantID,
+			Email:        adminEmail,
+			Name:         "Admin",
+			PasswordHash: hash,
+			IsActive:     true,
+		}); err != nil {
+			slog.Error("failed to create admin user", "error", err)
+			return
+		}
+		slog.Info("admin user created", "email", adminEmail)
+		return
+	}
+
+	// User exists: update password if ADMIN_PASSWORD was explicitly set
+	if os.Getenv("ADMIN_PASSWORD") != "" {
+		if err := auth.ComparePassword(existing.PasswordHash, cfg.AdminPassword); err != nil {
+			// Password differs, update it
+			if updateErr := users.UpdatePassword(ctx, existing.ID, hash); updateErr != nil {
+				slog.Error("failed to update admin password", "error", updateErr)
+				return
+			}
+			slog.Info("admin user password updated via ADMIN_PASSWORD env", "email", adminEmail)
+		}
+	}
 }

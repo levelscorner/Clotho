@@ -174,11 +174,9 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tokenStr := strings.TrimPrefix(header, "Bearer ")
-	// Parse without validation (token may be expired)
-	claims, err := auth.ValidateToken(tokenStr, h.jwtSecret)
+	// Parse without time validation (token may be expired, but signature is still checked)
+	claims, err := auth.ParseTokenUnvalidated(tokenStr, h.jwtSecret)
 	if err != nil {
-		// Try to get user ID from expired token by parsing without time validation
-		// For simplicity, we require a valid (non-expired) token or user_id in body.
 		writeError(w, http.StatusUnauthorized, "invalid access token")
 		return
 	}

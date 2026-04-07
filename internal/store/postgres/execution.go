@@ -35,7 +35,26 @@ func (s *ExecutionStore) Create(ctx context.Context, e domain.Execution) (domain
 	return e, nil
 }
 
-func (s *ExecutionStore) Get(ctx context.Context, id uuid.UUID) (domain.Execution, error) {
+func (s *ExecutionStore) Get(ctx context.Context, id, tenantID uuid.UUID) (domain.Execution, error) {
+	var e domain.Execution
+	err := s.pool.QueryRow(ctx,
+		`SELECT id, pipeline_version_id, tenant_id, status,
+		        total_cost, total_tokens, error,
+		        started_at, completed_at, created_at
+		 FROM executions WHERE id = $1 AND tenant_id = $2`, id, tenantID,
+	).Scan(
+		&e.ID, &e.PipelineVersionID, &e.TenantID, &e.Status,
+		&e.TotalCost, &e.TotalTokens, &e.Error,
+		&e.StartedAt, &e.CompletedAt, &e.CreatedAt,
+	)
+	if err != nil {
+		return domain.Execution{}, fmt.Errorf("execution get: %w", err)
+	}
+	return e, nil
+}
+
+// GetByID retrieves an execution by ID without tenant scoping (for internal system use).
+func (s *ExecutionStore) GetByID(ctx context.Context, id uuid.UUID) (domain.Execution, error) {
 	var e domain.Execution
 	err := s.pool.QueryRow(ctx,
 		`SELECT id, pipeline_version_id, tenant_id, status,
@@ -48,7 +67,7 @@ func (s *ExecutionStore) Get(ctx context.Context, id uuid.UUID) (domain.Executio
 		&e.StartedAt, &e.CompletedAt, &e.CreatedAt,
 	)
 	if err != nil {
-		return domain.Execution{}, fmt.Errorf("execution get: %w", err)
+		return domain.Execution{}, fmt.Errorf("execution get by id: %w", err)
 	}
 	return e, nil
 }
@@ -137,6 +156,20 @@ func (s *ExecutionStore) Complete(ctx context.Context, id uuid.UUID, totalCost f
 	}
 	if tag.RowsAffected() == 0 {
 		return fmt.Errorf("execution complete: not found")
+	}
+	return nil
+}
+
+func (s *ExecutionStore) Cancel(ctx context.Context, id, tenantID uuid.UUID) error {
+	tag, err := s.pool.Exec(ctx,
+		`UPDATE executions SET status = $1, completed_at = NOW()
+		 WHERE id = $2 AND tenant_id = $3 AND status IN ('pending', 'running')`,
+		domain.StatusCancelled, id, tenantID)
+	if err != nil {
+		return fmt.Errorf("execution cancel: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("execution cancel: not found or not cancellable")
 	}
 	return nil
 }

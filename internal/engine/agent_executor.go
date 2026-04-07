@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/google/uuid"
@@ -63,11 +64,12 @@ func (e *AgentExecutor) Execute(ctx context.Context, node domain.NodeInstance, i
 		if parseErr != nil {
 			return StepOutput{}, fmt.Errorf("agent executor: invalid credential_id: %w", parseErr)
 		}
-		cred, credErr := e.credentials.Get(ctx, credID)
+		tenantID := TenantIDFromContext(ctx)
+		cred, credErr := e.credentials.Get(ctx, credID, tenantID)
 		if credErr != nil {
 			return StepOutput{}, fmt.Errorf("agent executor: load credential: %w", credErr)
 		}
-		apiKey, decErr := e.credentials.GetDecrypted(ctx, credID)
+		apiKey, decErr := e.credentials.GetDecrypted(ctx, credID, tenantID)
 		if decErr != nil {
 			return StepOutput{}, fmt.Errorf("agent executor: decrypt credential: %w", decErr)
 		}
@@ -102,11 +104,140 @@ func (e *AgentExecutor) Execute(ctx context.Context, node domain.NodeInstance, i
 	tokensUsed := resp.Usage.TotalTokens
 	costUSD := resp.CostUSD
 
+	if cfg.CostCap != nil && costUSD > *cfg.CostCap {
+		return StepOutput{}, fmt.Errorf("agent executor: cost cap exceeded: $%.4f > $%.4f cap", costUSD, *cfg.CostCap)
+	}
+
 	return StepOutput{
 		Data:       json.RawMessage(outputData),
 		TokensUsed: &tokensUsed,
 		CostUSD:    &costUSD,
 	}, nil
+}
+
+// resolveProvider extracts common prompt-building and provider resolution logic.
+func (e *AgentExecutor) resolveProvider(ctx context.Context, cfg domain.AgentNodeConfig) (llm.Provider, llm.CompletionRequest, error) {
+	systemPrompt := cfg.Role.SystemPrompt
+	if cfg.Role.Persona != "" {
+		systemPrompt = systemPrompt + "\n\nPersona: " + cfg.Role.Persona
+	}
+
+	model := cfg.Model
+	if model == "" {
+		model = "gemini-2.0-flash"
+	}
+	temperature := cfg.Temperature
+	maxTokens := cfg.MaxTokens
+	if maxTokens == 0 {
+		maxTokens = 2048
+	}
+
+	var (
+		provider    llm.Provider
+		providerErr error
+	)
+	if cfg.CredentialID != "" {
+		credID, parseErr := uuid.Parse(cfg.CredentialID)
+		if parseErr != nil {
+			return nil, llm.CompletionRequest{}, fmt.Errorf("agent executor: invalid credential_id: %w", parseErr)
+		}
+		tenantID := TenantIDFromContext(ctx)
+		cred, credErr := e.credentials.Get(ctx, credID, tenantID)
+		if credErr != nil {
+			return nil, llm.CompletionRequest{}, fmt.Errorf("agent executor: load credential: %w", credErr)
+		}
+		apiKey, decErr := e.credentials.GetDecrypted(ctx, credID, tenantID)
+		if decErr != nil {
+			return nil, llm.CompletionRequest{}, fmt.Errorf("agent executor: decrypt credential: %w", decErr)
+		}
+		provider, providerErr = createProviderFromCredential(cred.Provider, apiKey)
+	} else {
+		providerName := cfg.Provider
+		if providerName == "" {
+			providerName = "gemini"
+		}
+		provider, providerErr = e.providers.Get(providerName)
+	}
+	if providerErr != nil {
+		return nil, llm.CompletionRequest{}, fmt.Errorf("agent executor: %w", providerErr)
+	}
+
+	req := llm.CompletionRequest{
+		Model:        model,
+		SystemPrompt: systemPrompt,
+		Temperature:  temperature,
+		MaxTokens:    maxTokens,
+	}
+	return provider, req, nil
+}
+
+// ExecuteStream runs an agent node with streaming output.
+func (e *AgentExecutor) ExecuteStream(ctx context.Context, node domain.NodeInstance, inputs map[string]json.RawMessage) (<-chan ExecutorStreamChunk, <-chan StepOutput, <-chan error) {
+	chunks := make(chan ExecutorStreamChunk, 64)
+	result := make(chan StepOutput, 1)
+	errCh := make(chan error, 1)
+
+	go func() {
+		defer close(chunks)
+		defer close(result)
+		defer close(errCh)
+
+		var cfg domain.AgentNodeConfig
+		if err := json.Unmarshal(node.Config, &cfg); err != nil {
+			errCh <- fmt.Errorf("agent executor: unmarshal config: %w", err)
+			return
+		}
+
+		provider, req, err := e.resolveProvider(ctx, cfg)
+		if err != nil {
+			errCh <- err
+			return
+		}
+
+		userPrompt := buildUserPrompt(cfg.Task.Template, inputs)
+		req.UserPrompt = userPrompt
+
+		stream, err := provider.Stream(ctx, req)
+		if err != nil {
+			errCh <- fmt.Errorf("agent executor: llm stream: %w", err)
+			return
+		}
+
+		var fullContent strings.Builder
+		for chunk := range stream {
+			if chunk.Content != "" {
+				fullContent.WriteString(chunk.Content)
+				chunks <- ExecutorStreamChunk{Content: chunk.Content}
+			}
+		}
+
+		content := fullContent.String()
+		outputData, err := json.Marshal(content)
+		if err != nil {
+			errCh <- fmt.Errorf("agent executor: marshal output: %w", err)
+			return
+		}
+
+		estTokens := len(content) / 4 // rough estimate for streaming
+		costUSD := llm.CalculateCost(req.Model, llm.TokenUsage{
+			CompletionTokens: estTokens,
+			TotalTokens:      estTokens,
+		})
+		tokensUsed := estTokens
+
+		if cfg.CostCap != nil && costUSD > *cfg.CostCap {
+			errCh <- fmt.Errorf("agent executor: cost cap exceeded: $%.4f > $%.4f cap", costUSD, *cfg.CostCap)
+			return
+		}
+
+		result <- StepOutput{
+			Data:       json.RawMessage(outputData),
+			TokensUsed: &tokensUsed,
+			CostUSD:    &costUSD,
+		}
+	}()
+
+	return chunks, result, errCh
 }
 
 // buildUserPrompt renders the task template with input data.
@@ -136,11 +267,18 @@ func concatenateInputs(inputs map[string]json.RawMessage) string {
 		return ""
 	}
 
+	// Sort keys for deterministic prompt assembly (Go map iteration is random).
+	keys := make([]string, 0, len(inputs))
+	for k := range inputs {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
 	var parts []string
-	for _, raw := range inputs {
+	for _, k := range keys {
+		raw := inputs[k]
 		var s string
 		if err := json.Unmarshal(raw, &s); err != nil {
-			// If not a JSON string, use the raw bytes
 			parts = append(parts, string(raw))
 		} else {
 			parts = append(parts, s)

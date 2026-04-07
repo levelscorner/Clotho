@@ -44,3 +44,30 @@ func (e *ToolExecutor) Execute(_ context.Context, node domain.NodeInstance, _ ma
 		CostUSD:    nil,
 	}, nil
 }
+
+// ExecuteStream runs a tool node with a single-chunk stream.
+func (e *ToolExecutor) ExecuteStream(ctx context.Context, node domain.NodeInstance, inputs map[string]json.RawMessage) (<-chan ExecutorStreamChunk, <-chan StepOutput, <-chan error) {
+	chunks := make(chan ExecutorStreamChunk, 1)
+	result := make(chan StepOutput, 1)
+	errCh := make(chan error, 1)
+
+	go func() {
+		defer close(chunks)
+		defer close(result)
+		defer close(errCh)
+
+		out, err := e.Execute(ctx, node, inputs)
+		if err != nil {
+			errCh <- err
+			return
+		}
+
+		// Send the complete output as a single chunk
+		var content string
+		_ = json.Unmarshal(out.Data, &content)
+		chunks <- ExecutorStreamChunk{Content: content}
+		result <- out
+	}()
+
+	return chunks, result, errCh
+}

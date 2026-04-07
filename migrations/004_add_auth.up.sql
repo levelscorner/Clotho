@@ -14,7 +14,3 @@ CREATE TABLE refresh_tokens (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_refresh_tokens_user ON refresh_tokens (user_id);
-
--- Seed: set default dev user password to bcrypt hash of "clotho123"
-UPDATE users SET password_hash = '$2a$10$iUxo3ZRU09xm5htjvRSraO2.Lx9IwbyHNiqTklmQtREKavK/1i/d2'
-WHERE email = 'admin@clotho.dev';

@@ -88,7 +88,9 @@ func (h *ExecutionHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	execution, err := h.executions.Get(r.Context(), id)
+	tenantID := middleware.TenantIDFromContext(r.Context())
+
+	execution, err := h.executions.Get(r.Context(), id, tenantID)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "execution not found")
 		return
@@ -101,6 +103,24 @@ func (h *ExecutionHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, dto.ExecutionWithSteps(execution, steps))
+}
+
+// Cancel handles POST /api/executions/{id}/cancel.
+func (h *ExecutionHandler) Cancel(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid execution ID")
+		return
+	}
+
+	tenantID := middleware.TenantIDFromContext(r.Context())
+
+	if err := h.executions.Cancel(r.Context(), id, tenantID); err != nil {
+		writeError(w, http.StatusNotFound, "execution not found or not cancellable")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "cancelled"})
 }
 
 // List handles GET /api/executions.

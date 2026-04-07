@@ -70,3 +70,16 @@ func (s *UserStore) UpdateLastLogin(ctx context.Context, id uuid.UUID) error {
 	}
 	return nil
 }
+
+func (s *UserStore) UpdatePassword(ctx context.Context, id uuid.UUID, passwordHash string) error {
+	tag, err := s.pool.Exec(ctx,
+		`UPDATE users SET password_hash = $1 WHERE id = $2`, passwordHash, id,
+	)
+	if err != nil {
+		return fmt.Errorf("user update password: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("user update password: not found")
+	}
+	return nil
+}

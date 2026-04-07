@@ -73,6 +73,9 @@ func (e *Engine) ExecuteWorkflow(ctx context.Context, execution domain.Execution
 		return fmt.Errorf("update execution to running: %w", err)
 	}
 
+	// Inject tenant ID into context for executor credential lookups
+	ctx = ContextWithTenantID(ctx, execution.TenantID)
+
 	// Build edge lookup: targetNodeID -> targetPortID -> (sourceNodeID, sourcePortID)
 	type edgeRef struct {
 		SourceNodeID string
@@ -97,6 +100,13 @@ func (e *Engine) ExecuteWorkflow(ctx context.Context, execution domain.Execution
 
 	// 3. Execute each node
 	for _, node := range sortedNodes {
+		// Check for cancellation between nodes
+		select {
+		case <-ctx.Done():
+			return e.failExecution(ctx, execution.ID, "execution cancelled")
+		default:
+		}
+
 		// Collect inputs from upstream
 		inputs := make(map[string]json.RawMessage)
 		if targets, ok := edgeLookup[node.ID]; ok {
@@ -139,13 +149,34 @@ func (e *Engine) ExecuteWorkflow(ctx context.Context, execution domain.Execution
 			return e.failExecution(ctx, execution.ID, fmt.Sprintf("no executor for node %s (type %s): %s", node.ID, node.Type, err))
 		}
 
-		// Execute
+		// Execute with streaming
 		start := time.Now()
-		stepOut, err := executor.Execute(ctx, node, inputs)
+		chunks, resultCh, errCh := executor.ExecuteStream(ctx, node, inputs)
+
+		// Forward streaming chunks as events
+		for chunk := range chunks {
+			chunkData, _ := json.Marshal(chunk.Content)
+			e.eventBus.Publish(execution.ID, Event{
+				Type:        EventStepChunk,
+				ExecutionID: execution.ID,
+				NodeID:      node.ID,
+				Data:        json.RawMessage(chunkData),
+				Timestamp:   time.Now(),
+			})
+		}
+
+		// Collect final result or error
+		var stepOut StepOutput
+		var execErr error
+		select {
+		case stepOut = <-resultCh:
+		case execErr = <-errCh:
+		}
+
 		durationMs := time.Since(start).Milliseconds()
 
-		if err != nil {
-			errStr := err.Error()
+		if execErr != nil {
+			errStr := execErr.Error()
 			if updateErr := e.stepResults.UpdateStatus(ctx, stepResult.ID, domain.StatusFailed, nil, &errStr, nil, nil, &durationMs); updateErr != nil {
 				slog.Error("failed to update step status", "error", updateErr)
 			}
@@ -153,10 +184,10 @@ func (e *Engine) ExecuteWorkflow(ctx context.Context, execution domain.Execution
 				Type:        EventStepFailed,
 				ExecutionID: execution.ID,
 				NodeID:      node.ID,
-				Error:       err.Error(),
+				Error:       execErr.Error(),
 				Timestamp:   time.Now(),
 			})
-			return e.failExecution(ctx, execution.ID, fmt.Sprintf("node %s execution failed: %s", node.ID, err))
+			return e.failExecution(ctx, execution.ID, fmt.Sprintf("node %s execution failed: %s", node.ID, execErr))
 		}
 
 		// Accumulate cost and token data

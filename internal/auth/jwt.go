@@ -62,6 +62,26 @@ func ValidateToken(tokenString, secret string) (*domain.TokenClaims, error) {
 	return claims, nil
 }
 
+// ParseTokenUnvalidated parses a JWT and returns claims even if the token is expired.
+// The HMAC signature is still validated. Only time-based claims (exp, nbf) are skipped.
+func ParseTokenUnvalidated(tokenString, secret string) (*domain.TokenClaims, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &domain.TokenClaims{}, func(t *jwt.Token) (any, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+		}
+		return []byte(secret), nil
+	}, jwt.WithoutClaimsValidation())
+	if err != nil {
+		return nil, fmt.Errorf("parse token unvalidated: %w", err)
+	}
+
+	claims, ok := token.Claims.(*domain.TokenClaims)
+	if !ok {
+		return nil, fmt.Errorf("parse token unvalidated: invalid claims")
+	}
+	return claims, nil
+}
+
 // HashRefreshToken returns a hex-encoded SHA-256 hash of the given refresh token.
 func HashRefreshToken(token string) string {
 	h := sha256.Sum256([]byte(token))

@@ -51,11 +51,13 @@ type PipelineVersionStore interface {
 // ExecutionStore manages execution lifecycle.
 type ExecutionStore interface {
 	Create(ctx context.Context, e domain.Execution) (domain.Execution, error)
-	Get(ctx context.Context, id uuid.UUID) (domain.Execution, error)
+	Get(ctx context.Context, id, tenantID uuid.UUID) (domain.Execution, error)
+	GetByID(ctx context.Context, id uuid.UUID) (domain.Execution, error)
 	ListByTenant(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]domain.Execution, error)
 	UpdateStatus(ctx context.Context, id uuid.UUID, status domain.ExecutionStatus, errMsg *string) error
 	UpdateCost(ctx context.Context, id uuid.UUID, totalCost float64, totalTokens int) error
 	Complete(ctx context.Context, id uuid.UUID, totalCost float64, totalTokens int) error
+	Cancel(ctx context.Context, id, tenantID uuid.UUID) error
 }
 
 // StepResultStore manages per-node step results within an execution.
@@ -77,8 +79,8 @@ type PresetStore interface {
 // CredentialStore manages LLM provider credentials.
 type CredentialStore interface {
 	Create(ctx context.Context, c domain.Credential) (domain.Credential, error)
-	Get(ctx context.Context, id uuid.UUID) (domain.Credential, error)
-	GetDecrypted(ctx context.Context, id uuid.UUID) (string, error)
+	Get(ctx context.Context, id, tenantID uuid.UUID) (domain.Credential, error)
+	GetDecrypted(ctx context.Context, id, tenantID uuid.UUID) (string, error)
 	ListByTenant(ctx context.Context, tenantID uuid.UUID) ([]domain.Credential, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 }
@@ -89,6 +91,7 @@ type UserStore interface {
 	GetByID(ctx context.Context, id uuid.UUID) (domain.User, error)
 	GetByEmail(ctx context.Context, email string) (domain.User, error)
 	UpdateLastLogin(ctx context.Context, id uuid.UUID) error
+	UpdatePassword(ctx context.Context, id uuid.UUID, passwordHash string) error
 }
 
 // RefreshTokenStore manages refresh token persistence.

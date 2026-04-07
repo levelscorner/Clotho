@@ -75,7 +75,9 @@ func NewRouter(deps Deps) chi.Router {
 
 		handler.NewProjectHandler(deps.Projects).Routes(r)
 		handler.NewPipelineHandler(deps.Pipelines, deps.PipelineVersions).Routes(r)
-		handler.NewExecutionHandler(deps.Executions, deps.PipelineVersions, deps.StepResults, deps.Queue).Routes(r)
+		execHandler := handler.NewExecutionHandler(deps.Executions, deps.PipelineVersions, deps.StepResults, deps.Queue)
+		execHandler.Routes(r)
+		r.Post("/api/executions/{id}/cancel", execHandler.Cancel)
 		handler.NewPresetHandler(deps.Presets).Routes(r)
 		handler.NewCredentialHandler(deps.Credentials).Routes(r)
 		handler.NewProviderHandler(deps.LLMRegistry).Routes(r)

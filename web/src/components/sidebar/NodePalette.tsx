@@ -158,29 +158,37 @@ const MEDIA_ITEMS: MediaItem[] = [
 // ---------------------------------------------------------------------------
 
 const sectionTitle: React.CSSProperties = {
-  fontSize: 11,
+  fontSize: 10,
   fontWeight: 600,
   textTransform: 'uppercase',
-  letterSpacing: '0.06em',
-  color: '#64748b',
-  padding: '12px 14px 6px',
+  letterSpacing: '0.8px',
+  color: 'var(--text-muted)',
+  padding: '8px 8px 4px',
 };
 
 const cardStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 8,
-  padding: '8px 14px',
-  margin: '2px 8px',
-  borderRadius: 6,
+  padding: '6px 8px',
+  marginBottom: 2,
+  borderRadius: 'var(--radius-sm)',
   cursor: 'grab',
   userSelect: 'none',
-  fontSize: 13,
-  color: '#cbd5e1',
-  background: '#1a1c2e',
-  border: '1px solid transparent',
-  transition: 'border-color 0.15s',
+  fontSize: 12,
+  color: 'var(--text-secondary)',
+  background: 'transparent',
+  border: 'none',
+  transition: 'background var(--duration-fast)',
 };
+
+const dotStyle = (color: string): React.CSSProperties => ({
+  width: 8,
+  height: 8,
+  borderRadius: 3,
+  background: color,
+  flexShrink: 0,
+});
 
 // ---------------------------------------------------------------------------
 // Component
@@ -240,12 +248,13 @@ export function NodePalette() {
   return (
     <aside
       style={{
-        width: 250,
-        minWidth: 250,
+        width: 180,
+        minWidth: 180,
         height: '100%',
-        background: '#12131f',
-        borderRight: '1px solid #1e2030',
+        background: 'var(--surface-base)',
+        borderRight: '1px solid var(--surface-border)',
         overflowY: 'auto',
+        padding: 12,
       }}
     >
       {/* Agents section */}
@@ -256,15 +265,15 @@ export function NodePalette() {
         onDragStart={onBlankAgentDragStart}
         style={cardStyle}
         onMouseOver={(e) => {
-          (e.currentTarget as HTMLDivElement).style.borderColor = '#334155';
+          (e.currentTarget as HTMLDivElement).style.background = 'var(--surface-hover)';
+          (e.currentTarget as HTMLDivElement).style.color = 'var(--text-primary)';
         }}
         onMouseOut={(e) => {
-          (e.currentTarget as HTMLDivElement).style.borderColor = 'transparent';
+          (e.currentTarget as HTMLDivElement).style.background = 'transparent';
+          (e.currentTarget as HTMLDivElement).style.color = 'var(--text-secondary)';
         }}
       >
-        <span style={{ fontSize: 16 }} aria-hidden>
-          &#x2795;
-        </span>
+        <div style={dotStyle('var(--accent)')} />
         Blank Agent
       </div>
 
@@ -275,16 +284,15 @@ export function NodePalette() {
           onDragStart={(e) => onPresetDragStart(e, preset)}
           style={cardStyle}
           onMouseOver={(e) => {
-            (e.currentTarget as HTMLDivElement).style.borderColor = '#334155';
+            (e.currentTarget as HTMLDivElement).style.background = 'var(--surface-hover)';
+            (e.currentTarget as HTMLDivElement).style.color = 'var(--text-primary)';
           }}
           onMouseOut={(e) => {
-            (e.currentTarget as HTMLDivElement).style.borderColor =
-              'transparent';
+            (e.currentTarget as HTMLDivElement).style.background = 'transparent';
+            (e.currentTarget as HTMLDivElement).style.color = 'var(--text-secondary)';
           }}
         >
-          <span style={{ fontSize: 16 }} aria-hidden>
-            {preset.icon || '\u{1f916}'}
-          </span>
+          <div style={dotStyle('var(--accent)')} />
           {preset.name}
         </div>
       ))}
@@ -299,16 +307,15 @@ export function NodePalette() {
           onDragStart={(e) => onToolDragStart(e, item)}
           style={cardStyle}
           onMouseOver={(e) => {
-            (e.currentTarget as HTMLDivElement).style.borderColor = '#334155';
+            (e.currentTarget as HTMLDivElement).style.background = 'var(--surface-hover)';
+            (e.currentTarget as HTMLDivElement).style.color = 'var(--text-primary)';
           }}
           onMouseOut={(e) => {
-            (e.currentTarget as HTMLDivElement).style.borderColor =
-              'transparent';
+            (e.currentTarget as HTMLDivElement).style.background = 'transparent';
+            (e.currentTarget as HTMLDivElement).style.color = 'var(--text-secondary)';
           }}
         >
-          <span style={{ fontSize: 16 }} aria-hidden>
-            {item.icon}
-          </span>
+          <div style={dotStyle('var(--text-muted)')} />
           {item.label}
         </div>
       ))}
@@ -316,26 +323,33 @@ export function NodePalette() {
       {/* Media section */}
       <div style={{ ...sectionTitle, marginTop: 8 }}>Media</div>
 
-      {MEDIA_ITEMS.map((item) => (
-        <div
-          key={item.mediaType}
-          draggable
-          onDragStart={(e) => onMediaDragStart(e, item)}
-          style={cardStyle}
-          onMouseOver={(e) => {
-            (e.currentTarget as HTMLDivElement).style.borderColor = '#334155';
-          }}
-          onMouseOut={(e) => {
-            (e.currentTarget as HTMLDivElement).style.borderColor =
-              'transparent';
-          }}
-        >
-          <span style={{ fontSize: 16 }} aria-hidden>
-            {item.icon}
-          </span>
-          {item.label}
-        </div>
-      ))}
+      {MEDIA_ITEMS.map((item) => {
+        const dotColor =
+          item.mediaType === 'image'
+            ? 'var(--port-image)'
+            : item.mediaType === 'video'
+              ? 'var(--port-video)'
+              : 'var(--port-audio)';
+        return (
+          <div
+            key={item.mediaType}
+            draggable
+            onDragStart={(e) => onMediaDragStart(e, item)}
+            style={cardStyle}
+            onMouseOver={(e) => {
+              (e.currentTarget as HTMLDivElement).style.background = 'var(--surface-hover)';
+              (e.currentTarget as HTMLDivElement).style.color = 'var(--text-primary)';
+            }}
+            onMouseOut={(e) => {
+              (e.currentTarget as HTMLDivElement).style.background = 'transparent';
+              (e.currentTarget as HTMLDivElement).style.color = 'var(--text-secondary)';
+            }}
+          >
+            <div style={dotStyle(dotColor)} />
+            {item.label}
+          </div>
+        );
+      })}
     </aside>
   );
 }

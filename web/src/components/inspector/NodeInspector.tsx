@@ -38,11 +38,11 @@ export function NodeInspector() {
   return (
     <aside
       style={{
-        width: 300,
-        minWidth: 300,
+        width: 260,
+        minWidth: 260,
         height: '100%',
-        background: '#12131f',
-        borderLeft: '1px solid #1e2030',
+        background: 'var(--surface-raised)',
+        borderLeft: '1px solid var(--surface-border)',
         overflowY: 'auto',
         padding: '14px',
       }}
@@ -52,7 +52,7 @@ export function NodeInspector() {
           fontSize: 12,
           fontWeight: 600,
           textTransform: 'uppercase',
-          color: '#64748b',
+          color: 'var(--text-muted)',
           marginBottom: 14,
           letterSpacing: '0.04em',
         }}
@@ -67,7 +67,7 @@ export function NodeInspector() {
           <hr
             style={{
               border: 'none',
-              borderTop: '1px solid #1e2030',
+              borderTop: '1px solid var(--surface-border)',
               marginTop: 14,
             }}
           />
@@ -105,7 +105,7 @@ export function NodeInspector() {
             borderRadius: 6,
             border: '1px solid rgba(248, 113, 113, 0.3)',
             background: 'rgba(248, 113, 113, 0.08)',
-            color: '#f87171',
+            color: 'var(--status-failed)',
             fontSize: 12,
             fontWeight: 600,
             cursor: 'pointer',

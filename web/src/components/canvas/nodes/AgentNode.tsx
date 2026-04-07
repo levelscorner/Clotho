@@ -44,6 +44,14 @@ function AgentNodeInner({ id, data, selected }: NodeProps<AgentNodeType>) {
   const cost = stepResult?.cost;
   const duration = stepResult?.duration_ms;
 
+  // Generate 2-letter initials from label (e.g., "Script Writer" -> "Sw")
+  const label = config.role.persona || data.label;
+  const words = label.split(/\s+/).filter(Boolean);
+  const initials =
+    words.length >= 2
+      ? `${words[0][0].toUpperCase()}${words[1][0].toLowerCase()}`
+      : label.slice(0, 2);
+
   return (
     <div onClick={handleClick} role="button" tabIndex={0} onKeyDown={handleClick}>
       <BaseNode
@@ -53,67 +61,61 @@ function AgentNodeInner({ id, data, selected }: NodeProps<AgentNodeType>) {
         selected={selected}
       >
         <div className="clotho-node__header">
-          <span style={{ fontSize: 16 }} aria-hidden>
-            &#x1f916;
-          </span>
-          <span className="clotho-node__label">
-            {config.role.persona || data.label}
-          </span>
+          <div className="clotho-node__icon clotho-node__icon--agent">
+            {initials}
+          </div>
+          <div>
+            <div className="clotho-node__title">{label}</div>
+            <div className="clotho-node__subtitle">{config.task.task_type}</div>
+          </div>
         </div>
 
         <div className="clotho-node__body">
-          <span className="clotho-node__badge">{config.model}</span>{' '}
-          <span className="clotho-node__badge">{config.task.task_type}</span>
+          {/* Streaming output preview */}
+          {output && status === 'running' ? (
+            <div className="clotho-node__preview clotho-node__preview--streaming">
+              {output.slice(-80)}
+              <span className="clotho-node__cursor" />
+            </div>
+          ) : output && status === 'completed' ? (
+            <div className="clotho-node__preview">
+              {output.slice(0, 100)}
+              {output.length > 100 ? '...' : ''}
+            </div>
+          ) : status === 'failed' ? (
+            <>
+              <div className="clotho-node__error">
+                {error || 'Execution failed'}
+              </div>
+              <div className="clotho-node__error-actions">
+                <button
+                  className="clotho-node__error-btn clotho-node__error-btn--primary"
+                  onClick={handleRetry}
+                >
+                  Retry
+                </button>
+                <button
+                  className="clotho-node__error-btn"
+                  onClick={handleEditPrompt}
+                >
+                  Edit Prompt
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="clotho-node__preview" style={{ fontStyle: 'italic' }}>
+              Ready to execute
+            </div>
+          )}
         </div>
 
-        {/* Streaming output preview */}
-        {output && status === 'running' && (
-          <div className="clotho-node__preview clotho-node__preview--streaming">
-            {output.slice(-80)}
-            <span className="clotho-node__cursor" />
-          </div>
-        )}
-
-        {/* Completed output preview */}
-        {output && status === 'completed' && (
-          <div className="clotho-node__preview">
-            {output.slice(0, 100)}
-            {output.length > 100 ? '...' : ''}
-          </div>
-        )}
-
-        {/* Error state with recovery actions */}
-        {status === 'failed' && (
-          <>
-            <div className="clotho-node__error">
-              {error || 'Execution failed'}
-            </div>
-            <div className="clotho-node__error-actions">
-              <button
-                className="clotho-node__error-btn clotho-node__error-btn--primary"
-                onClick={handleRetry}
-              >
-                Retry
-              </button>
-              <button
-                className="clotho-node__error-btn"
-                onClick={handleEditPrompt}
-              >
-                Edit Prompt
-              </button>
-            </div>
-          </>
-        )}
-
         {/* Footer with status + cost */}
-        {status && (
-          <div className="clotho-node__footer">
-            <span className={`clotho-node__status-dot clotho-node__status-dot--${status}`} />
-            <span>{status}</span>
-            {duration != null && <span>&middot; {(duration / 1000).toFixed(1)}s</span>}
-            {cost != null && <span>&middot; ${cost.toFixed(4)}</span>}
-          </div>
-        )}
+        <div className="clotho-node__footer">
+          <span className={`clotho-node__status-dot clotho-node__status-dot--${status ?? 'idle'}`} />
+          <span>{status ?? 'Idle'}</span>
+          {duration != null && <span>&middot; {(duration / 1000).toFixed(1)}s</span>}
+          {cost != null && <span>&middot; ${cost.toFixed(4)}</span>}
+        </div>
       </BaseNode>
     </div>
   );

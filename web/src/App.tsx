@@ -205,8 +205,8 @@ function AppContent() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: '#0f1117',
-          color: '#64748b',
+          background: 'var(--surface-base)',
+          color: 'var(--text-muted)',
           fontSize: 14,
         }}
       >
@@ -222,7 +222,7 @@ function AppContent() {
         height: '100vh',
         display: 'flex',
         flexDirection: 'column',
-        background: '#0f1117',
+        background: 'var(--surface-base)',
       }}
     >
       {/* Provider warning banner */}
@@ -230,9 +230,9 @@ function AppContent() {
         <div
           style={{
             padding: '8px 16px',
-            background: '#422006',
-            borderBottom: '1px solid #854d0e',
-            color: '#fef08a',
+            background: 'var(--accent-soft)',
+            borderBottom: '1px solid var(--accent)',
+            color: 'var(--accent)',
             fontSize: 13,
             textAlign: 'center',
             flexShrink: 0,
@@ -248,27 +248,32 @@ function AppContent() {
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 16,
-          padding: '8px 16px',
-          borderBottom: '1px solid #1e2030',
-          background: '#12131f',
+          gap: 12,
+          height: 44,
+          padding: '0 16px',
+          borderBottom: '1px solid var(--surface-border)',
+          background: 'var(--surface-overlay)',
           flexShrink: 0,
         }}
       >
         <span
-          style={{ fontWeight: 700, fontSize: 15, color: '#e2e8f0' }}
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontWeight: 700,
+            fontSize: 16,
+            color: 'var(--accent)',
+          }}
         >
           Clotho
         </span>
-        <span style={{ color: '#475569' }}>|</span>
 
         {currentProjectId && (
           <select
             style={{
-              background: '#1a1c2e',
-              color: '#e2e8f0',
-              border: '1px solid #334155',
-              borderRadius: 4,
+              background: 'var(--surface-base)',
+              color: 'var(--text-primary)',
+              border: '1px solid var(--surface-border)',
+              borderRadius: 'var(--radius-sm)',
               padding: '4px 8px',
               fontSize: 12,
             }}
@@ -289,10 +294,10 @@ function AppContent() {
         {currentPipelineId && (
           <select
             style={{
-              background: '#1a1c2e',
-              color: '#e2e8f0',
-              border: '1px solid #334155',
-              borderRadius: 4,
+              background: 'var(--surface-base)',
+              color: 'var(--text-primary)',
+              border: '1px solid var(--surface-border)',
+              borderRadius: 'var(--radius-sm)',
               padding: '4px 8px',
               fontSize: 12,
             }}
@@ -314,7 +319,7 @@ function AppContent() {
         )}
 
         <span
-          style={{ fontSize: 13, color: '#94a3b8', marginLeft: 4 }}
+          style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 4 }}
         >
           {pipelineName}
         </span>
@@ -325,10 +330,10 @@ function AppContent() {
           title="Undo (Ctrl+Z)"
           style={{
             padding: '4px 8px',
-            borderRadius: 4,
-            border: '1px solid #334155',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid var(--surface-border)',
             background: 'transparent',
-            color: canUndo ? '#94a3b8' : '#334155',
+            color: canUndo ? 'var(--text-secondary)' : 'var(--surface-border)',
             fontSize: 14,
             cursor: canUndo ? 'pointer' : 'default',
             lineHeight: 1,
@@ -342,10 +347,10 @@ function AppContent() {
           title="Redo (Ctrl+Shift+Z)"
           style={{
             padding: '4px 8px',
-            borderRadius: 4,
-            border: '1px solid #334155',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid var(--surface-border)',
             background: 'transparent',
-            color: canRedo ? '#94a3b8' : '#334155',
+            color: canRedo ? 'var(--text-secondary)' : 'var(--surface-border)',
             fontSize: 14,
             cursor: canRedo ? 'pointer' : 'default',
             lineHeight: 1,
@@ -360,20 +365,20 @@ function AppContent() {
             isDirty
               ? {
                   padding: '4px 12px',
-                  borderRadius: 4,
-                  border: '1px solid #854d0e',
-                  background: '#854d0e',
-                  color: '#fef08a',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--accent)',
+                  background: 'var(--accent-soft)',
+                  color: 'var(--accent)',
                   fontSize: 12,
                   cursor: 'pointer',
                   fontWeight: 600,
                 }
               : {
                   padding: '4px 12px',
-                  borderRadius: 4,
-                  border: '1px solid #334155',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--surface-border)',
                   background: 'transparent',
-                  color: '#475569',
+                  color: 'var(--text-muted)',
                   fontSize: 12,
                   cursor: 'default',
                 }
@@ -388,10 +393,10 @@ function AppContent() {
           title="Browse pipeline templates"
           style={{
             padding: '4px 12px',
-            borderRadius: 4,
-            border: '1px solid #334155',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid var(--surface-border)',
             background: 'transparent',
-            color: '#e5a84b',
+            color: 'var(--accent)',
             fontSize: 12,
             cursor: 'pointer',
             fontWeight: 600,
@@ -406,10 +411,10 @@ function AppContent() {
           title="Export pipeline as JSON"
           style={{
             padding: '4px 12px',
-            borderRadius: 4,
-            border: '1px solid #334155',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid var(--surface-border)',
             background: 'transparent',
-            color: currentPipelineId ? '#94a3b8' : '#334155',
+            color: currentPipelineId ? 'var(--text-secondary)' : 'var(--surface-border)',
             fontSize: 12,
             cursor: currentPipelineId ? 'pointer' : 'default',
           }}
@@ -423,10 +428,10 @@ function AppContent() {
           title="Import pipeline from JSON"
           style={{
             padding: '4px 12px',
-            borderRadius: 4,
-            border: '1px solid #334155',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid var(--surface-border)',
             background: 'transparent',
-            color: currentPipelineId ? '#94a3b8' : '#334155',
+            color: currentPipelineId ? 'var(--text-secondary)' : 'var(--surface-border)',
             fontSize: 12,
             cursor: currentPipelineId ? 'pointer' : 'default',
           }}
@@ -448,10 +453,10 @@ function AppContent() {
           title="Settings"
           style={{
             padding: '4px 10px',
-            borderRadius: 4,
-            border: '1px solid #334155',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid var(--surface-border)',
             background: 'transparent',
-            color: '#94a3b8',
+            color: 'var(--text-secondary)',
             fontSize: 14,
             cursor: 'pointer',
             lineHeight: 1,
@@ -468,10 +473,10 @@ function AppContent() {
           }}
           style={{
             padding: '4px 10px',
-            borderRadius: 4,
-            border: '1px solid #334155',
-            background: versionPanelIsOpen ? '#1e3a5f' : 'transparent',
-            color: versionPanelIsOpen ? '#60a5fa' : '#94a3b8',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid var(--surface-border)',
+            background: versionPanelIsOpen ? 'var(--accent-soft)' : 'transparent',
+            color: versionPanelIsOpen ? 'var(--accent)' : 'var(--text-secondary)',
             fontSize: 12,
             cursor: 'pointer',
           }}

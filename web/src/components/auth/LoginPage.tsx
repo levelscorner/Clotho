@@ -11,23 +11,23 @@ const pageStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  background: '#121216',
-  fontFamily: "'Inter', sans-serif",
+  background: 'var(--surface-base)',
+  fontFamily: 'var(--font-body)',
 };
 
 const cardStyle: React.CSSProperties = {
   width: 380,
   padding: 32,
-  background: '#1a1a20',
-  borderRadius: 14,
-  border: '1px solid #2e2e38',
+  background: 'var(--surface-raised)',
+  borderRadius: 'var(--radius-lg)',
+  border: '1px solid var(--surface-border)',
 };
 
 const logoStyle: React.CSSProperties = {
-  fontFamily: "'Sora', sans-serif",
+  fontFamily: 'var(--font-display)',
   fontWeight: 700,
   fontSize: 28,
-  color: '#e5a84b',
+  color: 'var(--accent)',
   letterSpacing: '-0.5px',
   textAlign: 'center',
   marginBottom: 8,
@@ -35,7 +35,7 @@ const logoStyle: React.CSSProperties = {
 
 const subtitleStyle: React.CSSProperties = {
   fontSize: 13,
-  color: '#8888a0',
+  color: 'var(--text-secondary)',
   textAlign: 'center',
   marginBottom: 28,
 };
@@ -48,7 +48,7 @@ const labelStyle: React.CSSProperties = {
   display: 'block',
   fontSize: 11,
   fontWeight: 600,
-  color: '#8888a0',
+  color: 'var(--text-secondary)',
   marginBottom: 6,
   textTransform: 'uppercase',
   letterSpacing: '0.06em',
@@ -57,43 +57,43 @@ const labelStyle: React.CSSProperties = {
 const inputStyle: React.CSSProperties = {
   width: '100%',
   padding: '10px 12px',
-  borderRadius: 6,
-  border: '1px solid #2e2e38',
-  background: '#222228',
-  color: '#ececf0',
+  borderRadius: 'var(--radius-sm)',
+  border: '1px solid var(--surface-border)',
+  background: 'var(--surface-overlay)',
+  color: 'var(--text-primary)',
   fontSize: 13,
-  fontFamily: "'Inter', sans-serif",
+  fontFamily: 'var(--font-body)',
   outline: 'none',
   boxSizing: 'border-box',
-  transition: 'border-color 200ms cubic-bezier(0.16, 1, 0.3, 1)',
+  transition: 'border-color var(--duration-normal) var(--ease-out)',
 };
 
 const buttonStyle: React.CSSProperties = {
   width: '100%',
   padding: '10px 16px',
-  borderRadius: 6,
+  borderRadius: 'var(--radius-sm)',
   border: 'none',
-  background: '#e5a84b',
-  color: '#121216',
+  background: 'var(--accent)',
+  color: 'var(--surface-base)',
   fontSize: 13,
   fontWeight: 600,
-  fontFamily: "'Inter', sans-serif",
+  fontFamily: 'var(--font-body)',
   cursor: 'pointer',
-  transition: 'opacity 200ms cubic-bezier(0.16, 1, 0.3, 1)',
+  transition: 'opacity var(--duration-normal) var(--ease-out)',
 };
 
 const errorStyle: React.CSSProperties = {
   padding: '8px 12px',
-  borderRadius: 6,
+  borderRadius: 'var(--radius-sm)',
   background: 'rgba(248, 113, 113, 0.12)',
   border: '1px solid rgba(248, 113, 113, 0.25)',
-  color: '#f87171',
+  color: 'var(--status-failed)',
   fontSize: 12,
   marginBottom: 16,
 };
 
 const linkStyle: React.CSSProperties = {
-  color: '#e5a84b',
+  color: 'var(--accent)',
   textDecoration: 'none',
   cursor: 'pointer',
   fontSize: 13,
@@ -190,7 +190,7 @@ export function LoginPage({ onSwitchToRegister }: LoginPageProps) {
             textAlign: 'center',
             marginTop: 20,
             fontSize: 13,
-            color: '#8888a0',
+            color: 'var(--text-secondary)',
           }}
         >
           No account yet?{' '}

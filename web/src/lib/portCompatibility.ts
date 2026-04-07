@@ -26,13 +26,13 @@ export function canConnect(sourceType: PortType, targetType: PortType): boolean 
 // ---------------------------------------------------------------------------
 
 export const PORT_COLORS: Record<PortType, string> = {
-  text:         '#94a3b8',
-  image_prompt: '#3b82f6',
-  video_prompt: '#a855f7',
-  audio_prompt: '#f59e0b',
-  image:        '#22c55e',
-  video:        '#f97316',
-  audio:        '#ec4899',
-  json:         '#eab308',
-  any:          '#6b7280',
+  text:         'var(--port-text)',
+  image_prompt: 'var(--port-image)',
+  video_prompt: 'var(--port-video)',
+  audio_prompt: 'var(--port-audio)',
+  image:        'var(--port-image)',
+  video:        'var(--port-video)',
+  audio:        'var(--port-audio)',
+  json:         'var(--accent)',
+  any:          'var(--text-muted)',
 };

@@ -43,7 +43,7 @@ const labelStyle: React.CSSProperties = {
   display: 'block',
   fontSize: 11,
   fontWeight: 600,
-  color: '#64748b',
+  color: 'var(--text-muted)',
   marginBottom: 4,
   textTransform: 'uppercase',
   letterSpacing: '0.04em',
@@ -52,10 +52,10 @@ const labelStyle: React.CSSProperties = {
 const inputStyle: React.CSSProperties = {
   width: '100%',
   padding: '6px 8px',
-  borderRadius: 4,
-  border: '1px solid #334155',
-  background: '#1a1c2e',
-  color: '#e2e8f0',
+  borderRadius: 'var(--radius-sm)',
+  border: '1px solid var(--surface-border)',
+  background: 'var(--surface-base)',
+  color: 'var(--text-primary)',
   fontSize: 13,
 };
 
@@ -174,12 +174,12 @@ export function AgentInspector({ nodeId, label, config }: AgentInspectorProps) {
         style={{
           fontSize: 12,
           fontWeight: 700,
-          color: '#94a3b8',
+          color: 'var(--text-secondary)',
           textTransform: 'uppercase',
           letterSpacing: '0.06em',
           marginBottom: 14,
           paddingBottom: 8,
-          borderBottom: '1px solid #1e2030',
+          borderBottom: '1px solid var(--surface-border)',
         }}
       >
         Agent Configuration
@@ -277,14 +277,14 @@ export function AgentInspector({ nodeId, label, config }: AgentInspectorProps) {
           <div
             style={{
               fontSize: 12,
-              color: '#55556a',
+              color: 'var(--text-muted)',
               padding: '6px 0',
             }}
           >
             No API keys saved.{' '}
             <span
               style={{
-                color: '#e5a84b',
+                color: 'var(--accent)',
                 cursor: 'pointer',
               }}
             >

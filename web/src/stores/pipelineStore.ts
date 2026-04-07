@@ -20,6 +20,7 @@ import type {
 } from '../lib/types';
 import { canConnect } from '../lib/portCompatibility';
 import { api } from '../lib/api';
+import { useHistoryStore } from './historyStore';
 
 // ---------------------------------------------------------------------------
 // Custom node type alias
@@ -41,6 +42,26 @@ let edgeIdCounter = 0;
 function nextEdgeId(): string {
   edgeIdCounter += 1;
   return `edge_${Date.now()}_${edgeIdCounter}`;
+}
+
+// ---------------------------------------------------------------------------
+// Debounced history push for config/label changes
+// ---------------------------------------------------------------------------
+
+let configDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+function debouncedHistoryPush(nodes: PipelineNode[], edges: RFEdge[]): void {
+  if (configDebounceTimer) {
+    clearTimeout(configDebounceTimer);
+  }
+  configDebounceTimer = setTimeout(() => {
+    useHistoryStore.getState().push({ nodes, edges });
+    configDebounceTimer = null;
+  }, 300);
+}
+
+function pushHistory(nodes: PipelineNode[], edges: RFEdge[]): void {
+  useHistoryStore.getState().push({ nodes, edges });
 }
 
 function findPort(
@@ -86,6 +107,13 @@ interface PipelineState {
   onEdgesChange: (changes: EdgeChange<RFEdge>[]) => void;
   onConnect: (connection: Connection) => void;
   setSelectedNode: (id: string | null) => void;
+  undo: () => void;
+  redo: () => void;
+  setRestoredState: (
+    nodes: PipelineNode[],
+    edges: RFEdge[],
+    viewport: Viewport,
+  ) => void;
   save: () => Promise<void>;
   load: (pipelineId: string) => Promise<void>;
   setPipeline: (id: string, name: string) => void;
@@ -106,6 +134,8 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
   },
 
   addNode: (nodeType, position, config, ports, label) => {
+    const { nodes, edges } = get();
+    pushHistory(nodes, edges);
     const id = nextNodeId();
     const data: PipelineNodeData =
       nodeType === 'agent'
@@ -135,6 +165,8 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
   },
 
   removeNodes: (ids) => {
+    const { nodes, edges } = get();
+    pushHistory(nodes, edges);
     const idSet = new Set(ids);
     set((state) => ({
       nodes: state.nodes.filter((n) => !idSet.has(n.id)),
@@ -150,6 +182,8 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
   },
 
   updateNodeConfig: (nodeId, updater) => {
+    const { nodes, edges } = get();
+    debouncedHistoryPush(nodes, edges);
     set((state) => ({
       nodes: state.nodes.map((n): PipelineNode => {
         if (n.id !== nodeId) return n;
@@ -166,6 +200,8 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
   },
 
   updateNodeLabel: (nodeId, label) => {
+    const { nodes, edges } = get();
+    debouncedHistoryPush(nodes, edges);
     set((state) => ({
       nodes: state.nodes.map((n): PipelineNode =>
         n.id === nodeId ? { ...n, data: { ...n.data, label } } : n,
@@ -204,6 +240,8 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
       return;
     }
 
+    pushHistory(nodes, get().edges);
+
     const newEdge: RFEdge = {
       id: nextEdgeId(),
       source: connection.source,
@@ -220,6 +258,38 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
 
   setSelectedNode: (id) => {
     set({ selectedNodeId: id });
+  },
+
+  undo: () => {
+    const snapshot = useHistoryStore.getState().undo();
+    if (snapshot) {
+      set({
+        nodes: snapshot.nodes as PipelineNode[],
+        edges: snapshot.edges,
+        isDirty: true,
+      });
+    }
+  },
+
+  redo: () => {
+    const snapshot = useHistoryStore.getState().redo();
+    if (snapshot) {
+      set({
+        nodes: snapshot.nodes as PipelineNode[],
+        edges: snapshot.edges,
+        isDirty: true,
+      });
+    }
+  },
+
+  setRestoredState: (nodes, edges, viewport) => {
+    set({
+      nodes,
+      edges,
+      viewport,
+      isDirty: false,
+      selectedNodeId: null,
+    });
   },
 
   save: async () => {
@@ -247,6 +317,7 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
 
     await api.post(`/pipelines/${pipelineId}/versions`, { graph });
     set({ isDirty: false });
+    useHistoryStore.getState().clear();
   },
 
   load: async (pipelineId) => {
@@ -290,6 +361,7 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
 
     const loadedViewport = graph.viewport ?? { x: 0, y: 0, zoom: 1 };
 
+    useHistoryStore.getState().clear();
     set({
       pipelineId,
       nodes,
@@ -305,6 +377,7 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
   },
 
   reset: () => {
+    useHistoryStore.getState().clear();
     set({
       nodes: [],
       edges: [],

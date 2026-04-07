@@ -43,3 +43,4 @@ web/dist/
 # Coverage
 coverage.out
 coverage.html
+.gstack/

@@ -9,9 +9,13 @@ import { NodeInspector } from './components/inspector/NodeInspector';
 import { RunButton } from './components/execution/RunButton';
 import { ExecutionStatus } from './components/execution/ExecutionStatus';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { VersionPanel } from './components/versioning/VersionPanel';
 import { useProjectStore } from './stores/projectStore';
 import { usePipelineStore } from './stores/pipelineStore';
+import { useHistoryStore } from './stores/historyStore';
+import { useVersionStore } from './stores/versionStore';
 import { useSSE } from './hooks/useSSE';
+import { useUndoRedo } from './hooks/useUndoRedo';
 import { useExecutionStore } from './stores/executionStore';
 import type { ProviderInfo } from './lib/types';
 
@@ -37,6 +41,15 @@ function AppContent() {
   const savePipeline = usePipelineStore((s) => s.save);
   const isDirty = usePipelineStore((s) => s.isDirty);
 
+  const undo = usePipelineStore((s) => s.undo);
+  const redo = usePipelineStore((s) => s.redo);
+  const canUndo = useHistoryStore((s) => s.canUndo);
+  const canRedo = useHistoryStore((s) => s.canRedo);
+
+  const versionPanelIsOpen = useVersionStore((s) => s.isOpen);
+  const toggleVersionPanel = useVersionStore((s) => s.togglePanel);
+  const fetchVersions = useVersionStore((s) => s.fetchVersions);
+
   const executionId = useExecutionStore((s) => s.executionId);
 
   const [loading, setLoading] = useState(true);
@@ -44,6 +57,9 @@ function AppContent() {
 
   // Connect SSE when we have an execution
   useSSE(executionId);
+
+  // Keyboard shortcuts for undo/redo
+  useUndoRedo();
 
   // Fetch providers and check availability
   useEffect(() => {
@@ -257,34 +273,101 @@ function AppContent() {
           {pipelineName}
         </span>
 
-        {isDirty && (
-          <button
-            onClick={handleSave}
-            style={{
-              padding: '4px 12px',
-              borderRadius: 4,
-              border: '1px solid #334155',
-              background: 'transparent',
-              color: '#94a3b8',
-              fontSize: 12,
-              cursor: 'pointer',
-            }}
-          >
-            Save
-          </button>
-        )}
+        <button
+          onClick={undo}
+          disabled={!canUndo}
+          title="Undo (Ctrl+Z)"
+          style={{
+            padding: '4px 8px',
+            borderRadius: 4,
+            border: '1px solid #334155',
+            background: 'transparent',
+            color: canUndo ? '#94a3b8' : '#334155',
+            fontSize: 14,
+            cursor: canUndo ? 'pointer' : 'default',
+            lineHeight: 1,
+          }}
+        >
+          {'↩'}
+        </button>
+        <button
+          onClick={redo}
+          disabled={!canRedo}
+          title="Redo (Ctrl+Shift+Z)"
+          style={{
+            padding: '4px 8px',
+            borderRadius: 4,
+            border: '1px solid #334155',
+            background: 'transparent',
+            color: canRedo ? '#94a3b8' : '#334155',
+            fontSize: 14,
+            cursor: canRedo ? 'pointer' : 'default',
+            lineHeight: 1,
+          }}
+        >
+          {'↪'}
+        </button>
+
+        <button
+          onClick={handleSave}
+          style={
+            isDirty
+              ? {
+                  padding: '4px 12px',
+                  borderRadius: 4,
+                  border: '1px solid #854d0e',
+                  background: '#854d0e',
+                  color: '#fef08a',
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                }
+              : {
+                  padding: '4px 12px',
+                  borderRadius: 4,
+                  border: '1px solid #334155',
+                  background: 'transparent',
+                  color: '#475569',
+                  fontSize: 12,
+                  cursor: 'default',
+                }
+          }
+          disabled={!isDirty}
+        >
+          Save
+        </button>
 
         <div style={{ flex: 1 }} />
 
+        <button
+          onClick={() => {
+            toggleVersionPanel();
+            if (!versionPanelIsOpen && currentPipelineId) {
+              void fetchVersions(currentPipelineId);
+            }
+          }}
+          style={{
+            padding: '4px 10px',
+            borderRadius: 4,
+            border: '1px solid #334155',
+            background: versionPanelIsOpen ? '#1e3a5f' : 'transparent',
+            color: versionPanelIsOpen ? '#60a5fa' : '#94a3b8',
+            fontSize: 12,
+            cursor: 'pointer',
+          }}
+        >
+          History
+        </button>
         <ExecutionStatus />
         <RunButton />
       </header>
 
       {/* Main content */}
-      <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+      <div style={{ display: 'flex', flex: 1, minHeight: 0, position: 'relative' }}>
         <NodePalette />
         <PipelineCanvas />
         <NodeInspector />
+        <VersionPanel />
       </div>
     </div>
   );

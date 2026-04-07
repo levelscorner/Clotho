@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
@@ -24,9 +25,13 @@ type Deps struct {
 	StepResults      store.StepResultStore
 	Presets          store.PresetStore
 	Credentials      store.CredentialStore
+	Users            store.UserStore
+	RefreshTokens    store.RefreshTokenStore
 	LLMRegistry      *llm.ProviderRegistry
 	Queue            *queue.Queue
 	EventBus         *engine.EventBus
+	JWTSecret        string
+	JWTExpiry        time.Duration
 }
 
 // NewRouter creates a chi.Router with all middleware and routes mounted.
@@ -45,23 +50,37 @@ func NewRouter(deps Deps) chi.Router {
 		AllowCredentials: true,
 		MaxAge:           300,
 	}))
-	r.Use(middleware.Tenant)
 
-	// Health check
+	// Health check (always public)
 	r.Get("/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	})
 
-	// Register all handler routes
-	handler.NewProjectHandler(deps.Projects).Routes(r)
-	handler.NewPipelineHandler(deps.Pipelines, deps.PipelineVersions).Routes(r)
-	handler.NewExecutionHandler(deps.Executions, deps.PipelineVersions, deps.StepResults, deps.Queue).Routes(r)
-	handler.NewPresetHandler(deps.Presets).Routes(r)
-	handler.NewCredentialHandler(deps.Credentials).Routes(r)
-	handler.NewProviderHandler(deps.LLMRegistry).Routes(r)
-	handler.NewStreamHandler(deps.EventBus).Routes(r)
+	// Auth routes (public, no auth middleware)
+	if deps.Users != nil && deps.RefreshTokens != nil && deps.JWTSecret != "" {
+		handler.NewAuthHandler(deps.Users, deps.RefreshTokens, deps.JWTSecret, deps.JWTExpiry).Routes(r)
+	}
+
+	// Protected routes group
+	r.Group(func(r chi.Router) {
+		if deps.JWTSecret != "" {
+			// JWT auth: inject user/tenant from token
+			r.Use(middleware.Auth(deps.JWTSecret))
+		} else {
+			// Dev mode fallback: hardcoded tenant
+			r.Use(middleware.Tenant)
+		}
+
+		handler.NewProjectHandler(deps.Projects).Routes(r)
+		handler.NewPipelineHandler(deps.Pipelines, deps.PipelineVersions).Routes(r)
+		handler.NewExecutionHandler(deps.Executions, deps.PipelineVersions, deps.StepResults, deps.Queue).Routes(r)
+		handler.NewPresetHandler(deps.Presets).Routes(r)
+		handler.NewCredentialHandler(deps.Credentials).Routes(r)
+		handler.NewProviderHandler(deps.LLMRegistry).Routes(r)
+		handler.NewStreamHandler(deps.EventBus).Routes(r)
+	})
 
 	return r
 }

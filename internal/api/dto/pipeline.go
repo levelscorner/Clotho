@@ -74,3 +74,12 @@ func PipelineVersionFromDomain(pv domain.PipelineVersion) PipelineVersionRespons
 		CreatedAt:  pv.CreatedAt,
 	}
 }
+
+// PipelineVersionsFromDomain converts a slice of domain.PipelineVersion to PipelineVersionResponse slice.
+func PipelineVersionsFromDomain(versions []domain.PipelineVersion) []PipelineVersionResponse {
+	out := make([]PipelineVersionResponse, 0, len(versions))
+	for _, pv := range versions {
+		out = append(out, PipelineVersionFromDomain(pv))
+	}
+	return out
+}

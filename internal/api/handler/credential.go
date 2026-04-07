@@ -49,10 +49,10 @@ func (h *CredentialHandler) Create(w http.ResponseWriter, r *http.Request) {
 	tenantID := middleware.TenantIDFromContext(r.Context())
 
 	cred, err := h.credentials.Create(r.Context(), domain.Credential{
-		TenantID: tenantID,
-		Provider: req.Provider,
-		APIKey:   req.APIKey,
-		Label:    req.Label,
+		TenantID:     tenantID,
+		Provider:     req.Provider,
+		PlaintextKey: req.APIKey,
+		Label:        req.Label,
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create credential")

@@ -60,7 +60,7 @@ const inputStyle: React.CSSProperties = {
 
 const textareaStyle: React.CSSProperties = {
   ...inputStyle,
-  minHeight: 80,
+  minHeight: 140,
   resize: 'vertical',
 };
 
@@ -162,6 +162,21 @@ export function AgentInspector({ nodeId, label, config }: AgentInspectorProps) {
 
   return (
     <div>
+      <div
+        style={{
+          fontSize: 12,
+          fontWeight: 700,
+          color: '#94a3b8',
+          textTransform: 'uppercase',
+          letterSpacing: '0.06em',
+          marginBottom: 14,
+          paddingBottom: 8,
+          borderBottom: '1px solid #1e2030',
+        }}
+      >
+        Agent Configuration
+      </div>
+
       {noProvidersAvailable && (
         <div style={warningBoxStyle}>
           No LLM providers configured. Set GEMINI_API_KEY, OPENAI_API_KEY, or

@@ -67,7 +67,11 @@ func (e *AgentExecutor) Execute(ctx context.Context, node domain.NodeInstance, i
 		if credErr != nil {
 			return StepOutput{}, fmt.Errorf("agent executor: load credential: %w", credErr)
 		}
-		provider, providerErr = createProviderFromCredential(cred.Provider, cred.APIKey)
+		apiKey, decErr := e.credentials.GetDecrypted(ctx, credID)
+		if decErr != nil {
+			return StepOutput{}, fmt.Errorf("agent executor: decrypt credential: %w", decErr)
+		}
+		provider, providerErr = createProviderFromCredential(cred.Provider, apiKey)
 	} else {
 		providerName := cfg.Provider
 		if providerName == "" {

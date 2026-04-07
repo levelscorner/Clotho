@@ -25,13 +25,14 @@ type CredentialResponse struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-// CredentialFromDomain converts a domain.Credential to CredentialResponse with a masked key.
+// CredentialFromDomain converts a domain.Credential to CredentialResponse.
+// The API key is never returned; the field shows a masked placeholder.
 func CredentialFromDomain(c domain.Credential) CredentialResponse {
 	return CredentialResponse{
 		ID:        c.ID,
 		TenantID:  c.TenantID,
 		Provider:  c.Provider,
-		APIKey:    maskAPIKey(c.APIKey),
+		APIKey:    "********",
 		Label:     c.Label,
 		CreatedAt: c.CreatedAt,
 	}

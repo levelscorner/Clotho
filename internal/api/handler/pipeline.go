@@ -31,6 +31,7 @@ func (h *PipelineHandler) Routes(r chi.Router) {
 	r.Put("/api/pipelines/{id}", h.Update)
 	r.Delete("/api/pipelines/{id}", h.Delete)
 	r.Post("/api/pipelines/{id}/versions", h.SaveVersion)
+	r.Get("/api/pipelines/{id}/versions", h.ListVersions)
 	r.Get("/api/pipelines/{id}/versions/latest", h.GetLatestVersion)
 	r.Get("/api/pipelines/{id}/versions/{version}", h.GetVersion)
 }
@@ -191,6 +192,23 @@ func (h *PipelineHandler) SaveVersion(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusCreated, dto.PipelineVersionFromDomain(pv))
+}
+
+// ListVersions handles GET /api/pipelines/{id}/versions.
+func (h *PipelineHandler) ListVersions(w http.ResponseWriter, r *http.Request) {
+	pipelineID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid pipeline ID")
+		return
+	}
+
+	versions, err := h.versions.ListByPipeline(r.Context(), pipelineID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list versions")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, dto.PipelineVersionsFromDomain(versions))
 }
 
 // GetVersion handles GET /api/pipelines/{id}/versions/{version}.

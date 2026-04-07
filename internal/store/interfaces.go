@@ -78,8 +78,25 @@ type PresetStore interface {
 type CredentialStore interface {
 	Create(ctx context.Context, c domain.Credential) (domain.Credential, error)
 	Get(ctx context.Context, id uuid.UUID) (domain.Credential, error)
+	GetDecrypted(ctx context.Context, id uuid.UUID) (string, error)
 	ListByTenant(ctx context.Context, tenantID uuid.UUID) ([]domain.Credential, error)
 	Delete(ctx context.Context, id uuid.UUID) error
+}
+
+// UserStore manages user CRUD.
+type UserStore interface {
+	Create(ctx context.Context, u domain.User) (domain.User, error)
+	GetByID(ctx context.Context, id uuid.UUID) (domain.User, error)
+	GetByEmail(ctx context.Context, email string) (domain.User, error)
+	UpdateLastLogin(ctx context.Context, id uuid.UUID) error
+}
+
+// RefreshTokenStore manages refresh token persistence.
+type RefreshTokenStore interface {
+	Create(ctx context.Context, userID uuid.UUID, tokenHash string, expiresAt time.Time) error
+	Validate(ctx context.Context, userID uuid.UUID, tokenHash string) (bool, error)
+	DeleteByUser(ctx context.Context, userID uuid.UUID) error
+	DeleteExpired(ctx context.Context) error
 }
 
 // JobStore manages the Postgres-backed job queue using SKIP LOCKED.

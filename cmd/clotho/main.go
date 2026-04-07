@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/user/clotho/internal/api"
 	"github.com/user/clotho/internal/config"
+	"github.com/user/clotho/internal/crypto"
 	"github.com/user/clotho/internal/domain"
 	"github.com/user/clotho/internal/engine"
 	"github.com/user/clotho/internal/llm"
@@ -43,6 +44,17 @@ func main() {
 	}
 	defer pool.Close()
 
+	// Envelope encryption (optional)
+	var envelope *crypto.Envelope
+	if cfg.MasterKey != "" {
+		envelope, err = crypto.NewEnvelope(cfg.MasterKey)
+		if err != nil {
+			slog.Error("failed to initialize envelope encryption", "error", err)
+			os.Exit(1)
+		}
+		slog.Info("envelope encryption enabled")
+	}
+
 	// Create all stores
 	projectStore := postgres.NewProjectStore(pool)
 	pipelineStore := postgres.NewPipelineStore(pool)
@@ -50,7 +62,9 @@ func main() {
 	executionStore := postgres.NewExecutionStore(pool)
 	stepResultStore := postgres.NewStepResultStore(pool)
 	presetStore := postgres.NewPresetStore(pool)
-	credentialStore := postgres.NewCredentialStore(pool)
+	credentialStore := postgres.NewCredentialStore(pool, envelope)
+	userStore := postgres.NewUserStore(pool)
+	refreshTokenStore := postgres.NewRefreshTokenStore(pool)
 	workerID := uuid.New().String()
 	jobStore := postgres.NewJobStore(pool, workerID)
 
@@ -86,36 +100,31 @@ func main() {
 	// Create worker
 	worker := queue.NewWorker(jobStore, executionStore, pipelineVersionStore, eng)
 
+	deps := api.Deps{
+		Projects:         projectStore,
+		Pipelines:        pipelineStore,
+		PipelineVersions: pipelineVersionStore,
+		Executions:       executionStore,
+		StepResults:      stepResultStore,
+		Presets:          presetStore,
+		Credentials:      credentialStore,
+		Users:            userStore,
+		RefreshTokens:    refreshTokenStore,
+		LLMRegistry:      llmRegistry,
+		Queue:            q,
+		EventBus:         eventBus,
+		JWTSecret:        cfg.JWTSecret,
+		JWTExpiry:        cfg.JWTExpiry,
+	}
+
 	switch cfg.Mode {
 	case "server":
-		runServer(ctx, cfg, api.Deps{
-			Projects:         projectStore,
-			Pipelines:        pipelineStore,
-			PipelineVersions: pipelineVersionStore,
-			Executions:       executionStore,
-			StepResults:      stepResultStore,
-			Presets:          presetStore,
-			Credentials:      credentialStore,
-			LLMRegistry:      llmRegistry,
-			Queue:            q,
-			EventBus:         eventBus,
-		})
+		runServer(ctx, cfg, deps)
 	case "worker":
 		runWorker(ctx, worker)
 	case "all":
 		go runWorker(ctx, worker)
-		runServer(ctx, cfg, api.Deps{
-			Projects:         projectStore,
-			Pipelines:        pipelineStore,
-			PipelineVersions: pipelineVersionStore,
-			Executions:       executionStore,
-			StepResults:      stepResultStore,
-			Presets:          presetStore,
-			Credentials:      credentialStore,
-			LLMRegistry:      llmRegistry,
-			Queue:            q,
-			EventBus:         eventBus,
-		})
+		runServer(ctx, cfg, deps)
 	default:
 		slog.Error("invalid mode", "mode", cfg.Mode)
 		os.Exit(1)

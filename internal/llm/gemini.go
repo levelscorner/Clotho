@@ -174,6 +174,11 @@ func (p *GeminiProvider) Stream(ctx context.Context, req CompletionRequest) (<-c
 	return ch, nil
 }
 
+// ListModels returns the available Gemini models.
+func (p *GeminiProvider) ListModels() []string {
+	return []string{"gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"}
+}
+
 func (p *GeminiProvider) buildRequestBody(req CompletionRequest) geminiRequest {
 	gr := geminiRequest{
 		Contents: []geminiContent{

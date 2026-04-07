@@ -10,10 +10,14 @@ import { RunButton } from './components/execution/RunButton';
 import { ExecutionStatus } from './components/execution/ExecutionStatus';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { VersionPanel } from './components/versioning/VersionPanel';
+import { LoginPage } from './components/auth/LoginPage';
+import { RegisterPage } from './components/auth/RegisterPage';
+import { SettingsPanel } from './components/settings/SettingsPanel';
 import { useProjectStore } from './stores/projectStore';
 import { usePipelineStore } from './stores/pipelineStore';
 import { useHistoryStore } from './stores/historyStore';
 import { useVersionStore } from './stores/versionStore';
+import { useAuthStore } from './stores/authStore';
 import { useSSE } from './hooks/useSSE';
 import { useUndoRedo } from './hooks/useUndoRedo';
 import { useExecutionStore } from './stores/executionStore';
@@ -54,6 +58,7 @@ function AppContent() {
 
   const [loading, setLoading] = useState(true);
   const [noProvidersAvailable, setNoProvidersAvailable] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Connect SSE when we have an execution
   useSSE(executionId);
@@ -340,6 +345,22 @@ function AppContent() {
         <div style={{ flex: 1 }} />
 
         <button
+          onClick={() => setSettingsOpen(true)}
+          title="Settings"
+          style={{
+            padding: '4px 10px',
+            borderRadius: 4,
+            border: '1px solid #334155',
+            background: 'transparent',
+            color: '#94a3b8',
+            fontSize: 14,
+            cursor: 'pointer',
+            lineHeight: 1,
+          }}
+        >
+          {'⚙'}
+        </button>
+        <button
           onClick={() => {
             toggleVersionPanel();
             if (!versionPanelIsOpen && currentPipelineId) {
@@ -369,16 +390,38 @@ function AppContent() {
         <NodeInspector />
         <VersionPanel />
       </div>
+
+      {/* Settings slide-over */}
+      {settingsOpen && (
+        <SettingsPanel onClose={() => setSettingsOpen(false)} />
+      )}
     </div>
+  );
+}
+
+function AuthGate() {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const [authView, setAuthView] = useState<'login' | 'register'>('login');
+
+  if (!isAuthenticated) {
+    return authView === 'login' ? (
+      <LoginPage onSwitchToRegister={() => setAuthView('register')} />
+    ) : (
+      <RegisterPage onSwitchToLogin={() => setAuthView('login')} />
+    );
+  }
+
+  return (
+    <ReactFlowProvider>
+      <AppContent />
+    </ReactFlowProvider>
   );
 }
 
 export default function App() {
   return (
     <ErrorBoundary>
-      <ReactFlowProvider>
-        <AppContent />
-      </ReactFlowProvider>
+      <AuthGate />
     </ErrorBoundary>
   );
 }

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 
@@ -43,12 +44,26 @@ func (h *ExecutionHandler) Routes(r chi.Router) {
 	r.Get("/api/executions", h.List)
 }
 
+// executeRequest is the optional request body for POST /api/pipelines/{id}/execute.
+type executeRequest struct {
+	FromNodeID string `json:"from_node_id,omitempty"`
+}
+
 // Execute handles POST /api/pipelines/{id}/execute.
 func (h *ExecutionHandler) Execute(w http.ResponseWriter, r *http.Request) {
 	pipelineID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid pipeline ID")
 		return
+	}
+
+	// Parse optional request body
+	var req executeRequest
+	if r.Body != nil && r.ContentLength > 0 {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
 	}
 
 	tenantID := middleware.TenantIDFromContext(r.Context())
@@ -71,8 +86,14 @@ func (h *ExecutionHandler) Execute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Build payload with from_node_id if provided
+	var payload json.RawMessage
+	if req.FromNodeID != "" {
+		payload, _ = json.Marshal(map[string]string{"from_node_id": req.FromNodeID})
+	}
+
 	// Enqueue for background processing
-	if err := h.queue.Submit(r.Context(), execution.ID, nil); err != nil {
+	if err := h.queue.Submit(r.Context(), execution.ID, payload); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to enqueue execution")
 		return
 	}

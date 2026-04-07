@@ -2,6 +2,7 @@ package queue
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"time"
 
@@ -97,10 +98,28 @@ func (w *Worker) processNext(ctx context.Context) {
 		return
 	}
 
-	// Execute the workflow
-	if err := w.engine.ExecuteWorkflow(ctx, execution, pv.Graph); err != nil {
-		slog.Error("workflow execution failed", "error", err, "execution_id", execution.ID)
-		if failErr := w.jobs.Fail(ctx, job.ID, err.Error()); failErr != nil {
+	// Check for from_node_id in job payload
+	var fromNodeID string
+	if len(job.Payload) > 0 {
+		var payload struct {
+			FromNodeID string `json:"from_node_id"`
+		}
+		if err := json.Unmarshal(job.Payload, &payload); err == nil {
+			fromNodeID = payload.FromNodeID
+		}
+	}
+
+	// Execute the workflow (full or partial re-run)
+	var execErr error
+	if fromNodeID != "" {
+		slog.Info("re-running from node", "from_node_id", fromNodeID, "execution_id", execution.ID)
+		execErr = w.engine.RerunFromNode(ctx, execution, pv.Graph, fromNodeID)
+	} else {
+		execErr = w.engine.ExecuteWorkflow(ctx, execution, pv.Graph)
+	}
+	if execErr != nil {
+		slog.Error("workflow execution failed", "error", execErr, "execution_id", execution.ID)
+		if failErr := w.jobs.Fail(ctx, job.ID, execErr.Error()); failErr != nil {
 			slog.Error("failed to mark job as failed", "error", failErr)
 		}
 		return

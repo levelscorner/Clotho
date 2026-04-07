@@ -190,8 +190,8 @@ export interface Execution {
 
 export interface Credential {
   id: string;
-  name: string;
   provider: string;
+  label: string;
   created_at: string;
 }
 

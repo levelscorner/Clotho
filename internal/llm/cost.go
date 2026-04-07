@@ -16,6 +16,8 @@ var costTable = map[string]modelCost{
 	"gpt-3.5-turbo":     {InputPerMillion: 0.50, OutputPerMillion: 1.50},
 
 	// Gemini
+	"gemini-2.5-flash": {InputPerMillion: 0.15, OutputPerMillion: 0.60},
+	"gemini-2.5-pro":   {InputPerMillion: 1.25, OutputPerMillion: 5.00},
 	"gemini-2.0-flash": {InputPerMillion: 0, OutputPerMillion: 0},
 	"gemini-1.5-pro":   {InputPerMillion: 1.25, OutputPerMillion: 5.00},
 	"gemini-1.5-flash": {InputPerMillion: 0.075, OutputPerMillion: 0.30},

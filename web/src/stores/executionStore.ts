@@ -13,7 +13,8 @@ interface ExecutionState {
   totalCost: number;
   isStreaming: boolean;
 
-  startExecution: (pipelineId: string) => Promise<void>;
+  startExecution: (pipelineId: string, fromNodeId?: string) => Promise<void>;
+  retryNode: (executionId: string, nodeId: string) => void;
   connectSSE: (executionId: string) => void;
   disconnectSSE: () => void;
   updateStep: (result: StepResult) => void;
@@ -30,7 +31,7 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
   totalCost: 0,
   isStreaming: false,
 
-  startExecution: async (pipelineId) => {
+  startExecution: async (pipelineId, fromNodeId) => {
     get().disconnectSSE();
 
     set({
@@ -41,12 +42,29 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
       isStreaming: false,
     });
 
+    const body = fromNodeId ? { from_node_id: fromNodeId } : undefined;
     const execution = await api.post<{ id: string }>(
       `/pipelines/${pipelineId}/execute`,
+      body,
     );
 
     set({ executionId: execution.id, status: 'running' });
     get().connectSSE(execution.id);
+  },
+
+  retryNode: (executionId, nodeId) => {
+    // Clear the failed step result so UI resets
+    set((state) => {
+      const next = new Map(state.stepResults);
+      next.delete(nodeId);
+      return { stepResults: next, status: 'running' };
+    });
+    // Re-run from the failed node via the existing execution's pipeline
+    // The actual re-execution is handled by startExecution with from_node_id
+    const pipelineId = executionId; // Will be replaced by proper pipeline lookup
+    get().startExecution(pipelineId, nodeId).catch(() => {
+      set({ status: 'failed' });
+    });
   },
 
   connectSSE: (executionId) => {

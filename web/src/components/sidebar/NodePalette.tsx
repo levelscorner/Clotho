@@ -74,38 +74,22 @@ function toolPorts(toolType: ToolType): Port[] {
 }
 
 // ---------------------------------------------------------------------------
-// Tool palette items
-// ---------------------------------------------------------------------------
-
-interface ToolItem {
-  label: string;
-  toolType: ToolType;
-  icon: string;
-}
-
-const TOOLS: ToolItem[] = [
-  { label: 'Text Box', toolType: 'text_box', icon: '\u{1f4dd}' },
-  { label: 'Image Box', toolType: 'image_box', icon: '\u{1f5bc}' },
-  { label: 'Video Box', toolType: 'video_box', icon: '\u{1f3ac}' },
-];
-
-// ---------------------------------------------------------------------------
 // Media palette items
 // ---------------------------------------------------------------------------
 
 interface MediaItem {
   label: string;
+  initials: string;
   mediaType: MediaType;
-  icon: string;
   defaultConfig: MediaNodeConfig;
   ports: Port[];
 }
 
 const MEDIA_ITEMS: MediaItem[] = [
   {
-    label: 'Image Generator',
+    label: 'Image Gen',
+    initials: 'Ig',
     mediaType: 'image',
-    icon: '\u{1F4F7}',
     defaultConfig: {
       media_type: 'image',
       provider: 'replicate',
@@ -120,9 +104,9 @@ const MEDIA_ITEMS: MediaItem[] = [
     ],
   },
   {
-    label: 'Video Generator',
+    label: 'Video Gen',
+    initials: 'Vg',
     mediaType: 'video',
-    icon: '\u{1F3AC}',
     defaultConfig: {
       media_type: 'video',
       provider: 'replicate',
@@ -136,9 +120,9 @@ const MEDIA_ITEMS: MediaItem[] = [
     ],
   },
   {
-    label: 'Voice / TTS',
+    label: 'Voice TTS',
+    initials: 'Tt',
     mediaType: 'audio',
-    icon: '\u{1F50A}',
     defaultConfig: {
       media_type: 'audio',
       provider: 'openai',
@@ -154,41 +138,78 @@ const MEDIA_ITEMS: MediaItem[] = [
 ];
 
 // ---------------------------------------------------------------------------
+// Tool items
+// ---------------------------------------------------------------------------
+
+interface ToolItem {
+  label: string;
+  initials: string;
+  toolType: ToolType;
+}
+
+const TOOLS: ToolItem[] = [
+  { label: 'Text', initials: 'Tx', toolType: 'text_box' },
+  { label: 'Image', initials: 'Im', toolType: 'image_box' },
+  { label: 'Video', initials: 'Vi', toolType: 'video_box' },
+];
+
+// ---------------------------------------------------------------------------
 // Styles
 // ---------------------------------------------------------------------------
 
-const sectionTitle: React.CSSProperties = {
+const sectionLabel: React.CSSProperties = {
   fontSize: 10,
   fontWeight: 600,
   textTransform: 'uppercase',
   letterSpacing: '0.8px',
   color: 'var(--text-muted)',
-  padding: '8px 8px 4px',
+  padding: '12px 0 6px',
 };
 
-const cardStyle: React.CSSProperties = {
+const gridStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(3, 1fr)',
+  gap: 6,
+};
+
+const tileStyle: React.CSSProperties = {
   display: 'flex',
+  flexDirection: 'column',
   alignItems: 'center',
-  gap: 8,
-  padding: '6px 8px',
-  marginBottom: 2,
+  gap: 4,
+  padding: '10px 4px 8px',
   borderRadius: 'var(--radius-sm)',
   cursor: 'grab',
   userSelect: 'none',
-  fontSize: 12,
-  color: 'var(--text-secondary)',
-  background: 'transparent',
-  border: 'none',
-  transition: 'background var(--duration-fast)',
+  border: '1px solid transparent',
+  background: 'var(--surface-raised)',
+  transition: 'all var(--duration-fast)',
 };
 
-const dotStyle = (color: string): React.CSSProperties => ({
-  width: 8,
-  height: 8,
-  borderRadius: 3,
-  background: color,
-  flexShrink: 0,
+const tileIconStyle = (bg: string, color: string): React.CSSProperties => ({
+  width: 32,
+  height: 32,
+  borderRadius: 'var(--radius-sm)',
+  background: bg,
+  color: color,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: 12,
+  fontWeight: 700,
+  fontFamily: 'var(--font-mono)',
 });
+
+const tileLabelStyle: React.CSSProperties = {
+  fontSize: 9,
+  color: 'var(--text-secondary)',
+  textAlign: 'center',
+  lineHeight: 1.2,
+  maxWidth: '100%',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+};
 
 // ---------------------------------------------------------------------------
 // Component
@@ -200,50 +221,30 @@ export function NodePalette() {
   useEffect(() => {
     api
       .get<AgentPreset[]>('/presets')
-      .then(setPresets)
-      .catch(() => {
-        // API may not be available yet; continue with empty presets
-      });
+      .then((data) => setPresets(Array.isArray(data) ? data : []))
+      .catch(() => {});
   }, []);
 
-  const onPresetDragStart = useCallback(
-    (event: DragEvent, preset: AgentPreset) => {
-      setDragData(event, {
-        nodeType: 'agent',
-        config: preset.config,
-        ports: defaultAgentPorts(),
-        label: preset.name,
-      });
+  const onDragStart = useCallback(
+    (event: DragEvent, payload: DragPayload) => {
+      setDragData(event, payload);
     },
     [],
   );
 
-  const onBlankAgentDragStart = useCallback((event: DragEvent) => {
-    setDragData(event, {
-      nodeType: 'agent',
-      config: blankAgentConfig(),
-      ports: defaultAgentPorts(),
-      label: 'Blank Agent',
-    });
-  }, []);
+  const handleHover = (e: React.MouseEvent, hovering: boolean) => {
+    const el = e.currentTarget as HTMLDivElement;
+    el.style.borderColor = hovering ? 'var(--surface-border)' : 'transparent';
+    el.style.background = hovering ? 'var(--surface-hover)' : 'var(--surface-raised)';
+  };
 
-  const onToolDragStart = useCallback((event: DragEvent, item: ToolItem) => {
-    setDragData(event, {
-      nodeType: 'tool',
-      config: toolConfig(item.toolType),
-      ports: toolPorts(item.toolType),
-      label: item.label,
-    });
-  }, []);
-
-  const onMediaDragStart = useCallback((event: DragEvent, item: MediaItem) => {
-    setDragData(event, {
-      nodeType: 'media',
-      config: item.defaultConfig,
-      ports: item.ports,
-      label: item.label,
-    });
-  }, []);
+  // Generate initials from preset name
+  const getInitials = (name: string) => {
+    const words = name.split(/\s+/).filter(Boolean);
+    return words.length >= 2
+      ? `${words[0][0].toUpperCase()}${words[1][0].toLowerCase()}`
+      : name.slice(0, 2);
+  };
 
   return (
     <aside
@@ -254,102 +255,128 @@ export function NodePalette() {
         background: 'var(--surface-base)',
         borderRight: '1px solid var(--surface-border)',
         overflowY: 'auto',
-        padding: 12,
+        padding: '8px 10px',
       }}
     >
-      {/* Agents section */}
-      <div style={sectionTitle}>Agents</div>
-
-      <div
-        draggable
-        onDragStart={onBlankAgentDragStart}
-        style={cardStyle}
-        onMouseOver={(e) => {
-          (e.currentTarget as HTMLDivElement).style.background = 'var(--surface-hover)';
-          (e.currentTarget as HTMLDivElement).style.color = 'var(--text-primary)';
-        }}
-        onMouseOut={(e) => {
-          (e.currentTarget as HTMLDivElement).style.background = 'transparent';
-          (e.currentTarget as HTMLDivElement).style.color = 'var(--text-secondary)';
-        }}
-      >
-        <div style={dotStyle('var(--accent)')} />
-        Blank Agent
+      {/* ---- AGENT ---- */}
+      <div style={sectionLabel}>Agent</div>
+      <div style={gridStyle}>
+        {/* Primary: blank agent */}
+        <div
+          draggable
+          onDragStart={(e) =>
+            onDragStart(e, {
+              nodeType: 'agent',
+              config: blankAgentConfig(),
+              ports: defaultAgentPorts(),
+              label: 'Agent',
+            })
+          }
+          style={{ ...tileStyle, gridColumn: 'span 3', flexDirection: 'row', gap: 8, padding: '8px 10px' }}
+          onMouseOver={(e) => handleHover(e, true)}
+          onMouseOut={(e) => handleHover(e, false)}
+        >
+          <div style={tileIconStyle('var(--accent-soft)', 'var(--accent)')}>+</div>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>New Agent</div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Drag to canvas</div>
+          </div>
+        </div>
       </div>
 
-      {presets.map((preset) => (
-        <div
-          key={preset.id}
-          draggable
-          onDragStart={(e) => onPresetDragStart(e, preset)}
-          style={cardStyle}
-          onMouseOver={(e) => {
-            (e.currentTarget as HTMLDivElement).style.background = 'var(--surface-hover)';
-            (e.currentTarget as HTMLDivElement).style.color = 'var(--text-primary)';
-          }}
-          onMouseOut={(e) => {
-            (e.currentTarget as HTMLDivElement).style.background = 'transparent';
-            (e.currentTarget as HTMLDivElement).style.color = 'var(--text-secondary)';
-          }}
-        >
-          <div style={dotStyle('var(--accent)')} />
-          {preset.name}
-        </div>
-      ))}
-
-      {/* Tools section */}
-      <div style={{ ...sectionTitle, marginTop: 8 }}>Tools</div>
-
-      {TOOLS.map((item) => (
-        <div
-          key={item.toolType}
-          draggable
-          onDragStart={(e) => onToolDragStart(e, item)}
-          style={cardStyle}
-          onMouseOver={(e) => {
-            (e.currentTarget as HTMLDivElement).style.background = 'var(--surface-hover)';
-            (e.currentTarget as HTMLDivElement).style.color = 'var(--text-primary)';
-          }}
-          onMouseOut={(e) => {
-            (e.currentTarget as HTMLDivElement).style.background = 'transparent';
-            (e.currentTarget as HTMLDivElement).style.color = 'var(--text-secondary)';
-          }}
-        >
-          <div style={dotStyle('var(--text-muted)')} />
-          {item.label}
-        </div>
-      ))}
-
-      {/* Media section */}
-      <div style={{ ...sectionTitle, marginTop: 8 }}>Media</div>
-
-      {MEDIA_ITEMS.map((item) => {
-        const dotColor =
-          item.mediaType === 'image'
-            ? 'var(--port-image)'
-            : item.mediaType === 'video'
-              ? 'var(--port-video)'
-              : 'var(--port-audio)';
-        return (
-          <div
-            key={item.mediaType}
-            draggable
-            onDragStart={(e) => onMediaDragStart(e, item)}
-            style={cardStyle}
-            onMouseOver={(e) => {
-              (e.currentTarget as HTMLDivElement).style.background = 'var(--surface-hover)';
-              (e.currentTarget as HTMLDivElement).style.color = 'var(--text-primary)';
-            }}
-            onMouseOut={(e) => {
-              (e.currentTarget as HTMLDivElement).style.background = 'transparent';
-              (e.currentTarget as HTMLDivElement).style.color = 'var(--text-secondary)';
-            }}
-          >
-            <div style={dotStyle(dotColor)} />
-            {item.label}
+      {/* ---- PERSONALITIES ---- */}
+      {presets.length > 0 && (
+        <>
+          <div style={{ ...sectionLabel, fontSize: 9 }}>Personalities</div>
+          <div style={gridStyle}>
+            {presets.map((preset) => (
+              <div
+                key={preset.id}
+                draggable
+                onDragStart={(e) =>
+                  onDragStart(e, {
+                    nodeType: 'agent',
+                    config: preset.config,
+                    ports: defaultAgentPorts(),
+                    label: preset.name,
+                  })
+                }
+                style={tileStyle}
+                onMouseOver={(e) => handleHover(e, true)}
+                onMouseOut={(e) => handleHover(e, false)}
+                title={preset.name}
+              >
+                <div style={tileIconStyle('var(--accent-soft)', 'var(--accent)')}>
+                  {getInitials(preset.name)}
+                </div>
+                <div style={tileLabelStyle}>{preset.name}</div>
+              </div>
+            ))}
           </div>
-        );
-      })}
+        </>
+      )}
+
+      {/* ---- MEDIA ---- */}
+      <div style={sectionLabel}>Media</div>
+      <div style={gridStyle}>
+        {MEDIA_ITEMS.map((item) => {
+          const colorMap: Record<MediaType, { bg: string; fg: string }> = {
+            image: { bg: 'rgba(245, 158, 11, 0.15)', fg: 'var(--port-image)' },
+            video: { bg: 'rgba(239, 68, 68, 0.15)', fg: 'var(--port-video)' },
+            audio: { bg: 'rgba(6, 182, 212, 0.15)', fg: 'var(--port-audio)' },
+          };
+          const c = colorMap[item.mediaType];
+          return (
+            <div
+              key={item.mediaType}
+              draggable
+              onDragStart={(e) =>
+                onDragStart(e, {
+                  nodeType: 'media',
+                  config: item.defaultConfig,
+                  ports: item.ports,
+                  label: item.label,
+                })
+              }
+              style={tileStyle}
+              onMouseOver={(e) => handleHover(e, true)}
+              onMouseOut={(e) => handleHover(e, false)}
+              title={item.label}
+            >
+              <div style={tileIconStyle(c.bg, c.fg)}>{item.initials}</div>
+              <div style={tileLabelStyle}>{item.label}</div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ---- TOOLS ---- */}
+      <div style={sectionLabel}>Tools</div>
+      <div style={gridStyle}>
+        {TOOLS.map((item) => (
+          <div
+            key={item.toolType}
+            draggable
+            onDragStart={(e) =>
+              onDragStart(e, {
+                nodeType: 'tool',
+                config: toolConfig(item.toolType),
+                ports: toolPorts(item.toolType),
+                label: item.label,
+              })
+            }
+            style={tileStyle}
+            onMouseOver={(e) => handleHover(e, true)}
+            onMouseOut={(e) => handleHover(e, false)}
+            title={item.label}
+          >
+            <div style={tileIconStyle('rgba(136, 136, 160, 0.15)', 'var(--text-secondary)')}>
+              {item.initials}
+            </div>
+            <div style={tileLabelStyle}>{item.label}</div>
+          </div>
+        ))}
+      </div>
     </aside>
   );
 }

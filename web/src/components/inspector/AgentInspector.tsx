@@ -324,36 +324,38 @@ export function AgentInspector({ nodeId, label, config }: AgentInspectorProps) {
 
       <div style={fieldGroup}>
         <label style={labelStyle}>Task Type</label>
-        <select
+        <input
+          list="clotho-task-types"
           style={inputStyle}
           value={config.task.task_type}
           onChange={(e) =>
             updateTask({ task_type: e.target.value as TaskType })
           }
-        >
+          placeholder="Type or select..."
+        />
+        <datalist id="clotho-task-types">
           {TASK_TYPES.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
+            <option key={t} value={t} />
           ))}
-        </select>
+        </datalist>
       </div>
 
       <div style={fieldGroup}>
         <label style={labelStyle}>Output Type</label>
-        <select
+        <input
+          list="clotho-output-types"
           style={inputStyle}
           value={config.task.output_type}
           onChange={(e) =>
             updateTask({ output_type: e.target.value as PortType })
           }
-        >
+          placeholder="Type or select..."
+        />
+        <datalist id="clotho-output-types">
           {PORT_TYPES.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
+            <option key={t} value={t} />
           ))}
-        </select>
+        </datalist>
       </div>
 
       <div style={fieldGroup}>

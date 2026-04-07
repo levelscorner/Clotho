@@ -182,6 +182,55 @@ const credentials = {
   delete: (id: string) => request<void>('DELETE', `/credentials/${id}`),
 };
 
-export const api = { get, post, put, del, credentials };
+// ---------------------------------------------------------------------------
+// Pipeline Export / Import
+// ---------------------------------------------------------------------------
+
+async function exportPipeline(id: string): Promise<Blob> {
+  const url = `${BASE}/pipelines/${id}/export`;
+  const headers: Record<string, string> = {};
+  const token = getAccessToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  const res = await fetch(url, { headers });
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new ApiError(res.status, text);
+  }
+  return res.blob();
+}
+
+function importPipeline(id: string, data: unknown) {
+  return request<{ id: string }>('POST', `/pipelines/${id}/import`, data);
+}
+
+// ---------------------------------------------------------------------------
+// Template API
+// ---------------------------------------------------------------------------
+
+export interface TemplateSummary {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  node_count: number;
+}
+
+export interface TemplateDetail {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  node_count: number;
+  graph: import('./types').PipelineGraph;
+}
+
+const templateApi = {
+  list: () => get<TemplateSummary[]>('/templates'),
+  get: (id: string) => get<TemplateDetail>(`/templates/${id}`),
+};
+
+export const api = { get, post, put, del, credentials, exportPipeline, importPipeline, templates: templateApi };
 
 export { ApiError };

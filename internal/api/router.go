@@ -81,6 +81,7 @@ func NewRouter(deps Deps) chi.Router {
 		handler.NewPresetHandler(deps.Presets).Routes(r)
 		handler.NewCredentialHandler(deps.Credentials).Routes(r)
 		handler.NewProviderHandler(deps.LLMRegistry).Routes(r)
+		handler.NewTemplateHandler().Routes(r)
 		handler.NewStreamHandler(deps.EventBus).Routes(r)
 	})
 

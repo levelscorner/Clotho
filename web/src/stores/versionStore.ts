@@ -58,18 +58,31 @@ export const useVersionStore = create<VersionState>((set) => ({
               nodeType: 'agent' as const,
               label: ni.label,
               ports: ni.ports,
-              config: ni.config,
+              config: ni.config as import('../lib/types').AgentNodeConfig,
             }
-          : {
-              nodeType: 'tool' as const,
-              label: ni.label,
-              ports: ni.ports,
-              config: ni.config,
-            };
+          : ni.type === 'media'
+            ? {
+                nodeType: 'media' as const,
+                label: ni.label,
+                ports: ni.ports,
+                config: ni.config as import('../lib/types').MediaNodeConfig,
+              }
+            : {
+                nodeType: 'tool' as const,
+                label: ni.label,
+                ports: ni.ports,
+                config: ni.config as import('../lib/types').ToolNodeConfig,
+              };
+
+      const rfTypeMap: Record<string, string> = {
+        agent: 'agentNode',
+        tool: 'toolNode',
+        media: 'mediaNode',
+      };
 
       return {
         id: ni.id,
-        type: ni.type === 'agent' ? 'agentNode' : 'toolNode',
+        type: rfTypeMap[ni.type] ?? 'agentNode',
         position: ni.position,
         data,
       };

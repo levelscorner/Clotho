@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import '@xyflow/react/dist/style.css';
 import './styles/nodes.css';
 
@@ -13,6 +13,7 @@ import { VersionPanel } from './components/versioning/VersionPanel';
 import { LoginPage } from './components/auth/LoginPage';
 import { RegisterPage } from './components/auth/RegisterPage';
 import { SettingsPanel } from './components/settings/SettingsPanel';
+import { TemplateGallery } from './components/templates/TemplateGallery';
 import { useProjectStore } from './stores/projectStore';
 import { usePipelineStore } from './stores/pipelineStore';
 import { useHistoryStore } from './stores/historyStore';
@@ -21,6 +22,7 @@ import { useAuthStore } from './stores/authStore';
 import { useSSE } from './hooks/useSSE';
 import { useUndoRedo } from './hooks/useUndoRedo';
 import { useExecutionStore } from './stores/executionStore';
+import { api } from './lib/api';
 import type { ProviderInfo } from './lib/types';
 
 // ---------------------------------------------------------------------------
@@ -59,6 +61,8 @@ function AppContent() {
   const [loading, setLoading] = useState(true);
   const [noProvidersAvailable, setNoProvidersAvailable] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   // Connect SSE when we have an execution
   useSSE(executionId);
@@ -154,6 +158,43 @@ function AppContent() {
   const handleSave = useCallback(async () => {
     await savePipeline();
   }, [savePipeline]);
+
+  const handleExport = useCallback(async () => {
+    if (!currentPipelineId) return;
+    try {
+      const blob = await api.exportPipeline(currentPipelineId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${pipelineName || 'pipeline'}.clotho.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // Export failed silently — could add a toast in the future.
+    }
+  }, [currentPipelineId, pipelineName]);
+
+  const handleImport = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file || !currentPipelineId) return;
+
+      try {
+        const text = await file.text();
+        const data: unknown = JSON.parse(text);
+        await api.importPipeline(currentPipelineId, data);
+        await loadPipeline(currentPipelineId);
+      } catch {
+        // Import failed silently — could add a toast in the future.
+      }
+
+      // Reset file input so the same file can be re-imported.
+      if (importInputRef.current) {
+        importInputRef.current.value = '';
+      }
+    },
+    [currentPipelineId, loadPipeline],
+  );
 
   if (loading) {
     return (
@@ -342,6 +383,64 @@ function AppContent() {
           Save
         </button>
 
+        <button
+          onClick={() => setTemplatesOpen(true)}
+          title="Browse pipeline templates"
+          style={{
+            padding: '4px 12px',
+            borderRadius: 4,
+            border: '1px solid #334155',
+            background: 'transparent',
+            color: '#e5a84b',
+            fontSize: 12,
+            cursor: 'pointer',
+            fontWeight: 600,
+          }}
+        >
+          Templates
+        </button>
+
+        <button
+          onClick={handleExport}
+          disabled={!currentPipelineId}
+          title="Export pipeline as JSON"
+          style={{
+            padding: '4px 12px',
+            borderRadius: 4,
+            border: '1px solid #334155',
+            background: 'transparent',
+            color: currentPipelineId ? '#94a3b8' : '#334155',
+            fontSize: 12,
+            cursor: currentPipelineId ? 'pointer' : 'default',
+          }}
+        >
+          Export
+        </button>
+
+        <button
+          onClick={() => importInputRef.current?.click()}
+          disabled={!currentPipelineId}
+          title="Import pipeline from JSON"
+          style={{
+            padding: '4px 12px',
+            borderRadius: 4,
+            border: '1px solid #334155',
+            background: 'transparent',
+            color: currentPipelineId ? '#94a3b8' : '#334155',
+            fontSize: 12,
+            cursor: currentPipelineId ? 'pointer' : 'default',
+          }}
+        >
+          Import
+        </button>
+        <input
+          ref={importInputRef}
+          type="file"
+          accept=".json"
+          onChange={handleImport}
+          style={{ display: 'none' }}
+        />
+
         <div style={{ flex: 1 }} />
 
         <button
@@ -394,6 +493,11 @@ function AppContent() {
       {/* Settings slide-over */}
       {settingsOpen && (
         <SettingsPanel onClose={() => setSettingsOpen(false)} />
+      )}
+
+      {/* Template gallery modal */}
+      {templatesOpen && (
+        <TemplateGallery onClose={() => setTemplatesOpen(false)} />
       )}
     </div>
   );

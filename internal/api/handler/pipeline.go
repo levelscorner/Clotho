@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -30,6 +31,8 @@ func (h *PipelineHandler) Routes(r chi.Router) {
 	r.Get("/api/pipelines/{id}", h.Get)
 	r.Put("/api/pipelines/{id}", h.Update)
 	r.Delete("/api/pipelines/{id}", h.Delete)
+	r.Get("/api/pipelines/{id}/export", h.Export)
+	r.Post("/api/pipelines/{id}/import", h.Import)
 	r.Post("/api/pipelines/{id}/versions", h.SaveVersion)
 	r.Get("/api/pipelines/{id}/versions", h.ListVersions)
 	r.Get("/api/pipelines/{id}/versions/latest", h.GetLatestVersion)
@@ -249,4 +252,143 @@ func (h *PipelineHandler) GetLatestVersion(w http.ResponseWriter, r *http.Reques
 	}
 
 	writeJSON(w, http.StatusOK, dto.PipelineVersionFromDomain(pv))
+}
+
+// pipelineExport is the JSON shape for pipeline export/import.
+type pipelineExport struct {
+	Name         string              `json:"name"`
+	Version      int                 `json:"version"`
+	ClothoVersion string             `json:"clotho_version"`
+	Graph        domain.PipelineGraph `json:"graph"`
+}
+
+// Export handles GET /api/pipelines/{id}/export.
+func (h *PipelineHandler) Export(w http.ResponseWriter, r *http.Request) {
+	pipelineID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid pipeline ID")
+		return
+	}
+
+	pipeline, err := h.pipelines.Get(r.Context(), pipelineID)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "pipeline not found")
+		return
+	}
+
+	pv, err := h.versions.GetLatest(r.Context(), pipelineID)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "no versions found")
+		return
+	}
+
+	// Strip sensitive fields from node configs (credential IDs, tenant info).
+	sanitizedNodes := make([]domain.NodeInstance, len(pv.Graph.Nodes))
+	for i, node := range pv.Graph.Nodes {
+		sanitizedNodes[i] = node
+		sanitizedNodes[i].Config = stripSensitiveConfig(node.Config)
+	}
+
+	export := pipelineExport{
+		Name:          pipeline.Name,
+		Version:       pv.Version,
+		ClothoVersion: "0.1.0",
+		Graph: domain.PipelineGraph{
+			Nodes:    sanitizedNodes,
+			Edges:    pv.Graph.Edges,
+			Viewport: pv.Graph.Viewport,
+		},
+	}
+
+	filename := fmt.Sprintf("%s.clotho.json", pipeline.Name)
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	writeJSON(w, http.StatusOK, export)
+}
+
+// stripSensitiveConfig removes credential_id and tenant_id from a node config.
+func stripSensitiveConfig(raw json.RawMessage) json.RawMessage {
+	if len(raw) == 0 {
+		return raw
+	}
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return raw
+	}
+	delete(m, "credential_id")
+	delete(m, "tenant_id")
+	out, err := json.Marshal(m)
+	if err != nil {
+		return raw
+	}
+	return out
+}
+
+// Import handles POST /api/pipelines/{id}/import.
+func (h *PipelineHandler) Import(w http.ResponseWriter, r *http.Request) {
+	pipelineID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid pipeline ID")
+		return
+	}
+
+	// Verify pipeline exists.
+	if _, err := h.pipelines.Get(r.Context(), pipelineID); err != nil {
+		writeError(w, http.StatusNotFound, "pipeline not found")
+		return
+	}
+
+	var imp pipelineExport
+	if err := json.NewDecoder(r.Body).Decode(&imp); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	// Validate nodes have required fields.
+	if len(imp.Graph.Nodes) == 0 {
+		writeError(w, http.StatusBadRequest, "graph must contain at least one node")
+		return
+	}
+	nodeIDs := make(map[string]bool, len(imp.Graph.Nodes))
+	for _, node := range imp.Graph.Nodes {
+		if node.ID == "" {
+			writeError(w, http.StatusBadRequest, "each node must have an id")
+			return
+		}
+		if node.Type == "" {
+			writeError(w, http.StatusBadRequest, "each node must have a type")
+			return
+		}
+		nodeIDs[node.ID] = true
+	}
+
+	// Validate edges reference valid node IDs.
+	for _, edge := range imp.Graph.Edges {
+		if !nodeIDs[edge.Source] {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("edge references unknown source node %q", edge.Source))
+			return
+		}
+		if !nodeIDs[edge.Target] {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("edge references unknown target node %q", edge.Target))
+			return
+		}
+	}
+
+	// Determine next version number.
+	nextVersion := 1
+	latest, err := h.versions.GetLatest(r.Context(), pipelineID)
+	if err == nil {
+		nextVersion = latest.Version + 1
+	}
+
+	pv, err := h.versions.Create(r.Context(), domain.PipelineVersion{
+		PipelineID: pipelineID,
+		Version:    nextVersion,
+		Graph:      imp.Graph,
+	})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to create imported version")
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, dto.PipelineVersionFromDomain(pv))
 }

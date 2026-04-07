@@ -1,7 +1,64 @@
 /* ---------------------------------------------------------------------------
-   Global reset and base styles
+   Clotho Design System — Global Styles
+   See DESIGN.md for the full token reference.
    --------------------------------------------------------------------------- */
 
+/* Design Tokens */
+:root {
+  /* Surfaces */
+  --surface-base:    #121216;
+  --surface-raised:  #1a1a20;
+  --surface-overlay: #222228;
+  --surface-hover:   #2a2a32;
+  --surface-border:  #2e2e38;
+
+  /* Text */
+  --text-primary:    #ececf0;
+  --text-secondary:  #8888a0;
+  --text-muted:      #55556a;
+
+  /* Accent (warm amber) */
+  --accent:          #e5a84b;
+  --accent-soft:     rgba(229, 168, 75, 0.12);
+  --accent-glow:     rgba(229, 168, 75, 0.25);
+
+  /* Status */
+  --status-running:  #e5a84b;
+  --status-complete: #4ade80;
+  --status-failed:   #f87171;
+  --status-queued:   #55556a;
+
+  /* Port types */
+  --port-text:       #a78bfa;
+  --port-image:      #f59e0b;
+  --port-video:      #ef4444;
+  --port-audio:      #06b6d4;
+
+  /* Typography */
+  --font-body:    'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display: 'Sora', 'Inter', sans-serif;
+  --font-mono:    'JetBrains Mono', 'Fira Code', monospace;
+
+  /* Spacing */
+  --space-xs:  4px;
+  --space-sm:  8px;
+  --space-md:  12px;
+  --space-lg:  16px;
+  --space-xl:  24px;
+  --space-2xl: 32px;
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast:   120ms;
+  --duration-normal: 200ms;
+}
+
+/* Reset */
 *,
 *::before,
 *::after {
@@ -19,10 +76,9 @@ body,
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-    'Helvetica Neue', Arial, sans-serif;
-  background: #0f1117;
-  color: #e2e8f0;
+  font-family: var(--font-body);
+  background: var(--surface-base);
+  color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -41,12 +97,15 @@ button {
 
 /* Dark scrollbars */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: #0f1117; }
-::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: #475569; }
+::-webkit-scrollbar-track { background: var(--surface-base); }
+::-webkit-scrollbar-thumb { background: var(--surface-border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--surface-hover); }
 
-/* Focus visible */
+/* Focus visible — amber, not blue */
 *:focus-visible {
-  outline: 2px solid #3b82f6;
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* Load fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=JetBrains+Mono:wght@400&family=Sora:wght@700&display=swap');

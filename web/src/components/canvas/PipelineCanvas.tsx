@@ -140,10 +140,8 @@ export function PipelineCanvas() {
         fitView
         proOptions={{ hideAttribution: true }}
       >
-        <Background color="#334155" gap={24} size={1} />
-        <Controls
-          style={{ background: '#1e2030', borderColor: '#334155' }}
-        />
+        <Background color="var(--surface-border)" gap={24} size={1} />
+        <Controls className="clotho-controls" />
       </ReactFlow>
     </div>
   );

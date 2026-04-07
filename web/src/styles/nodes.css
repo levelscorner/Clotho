@@ -363,3 +363,35 @@
     width: 50%;
   }
 }
+
+/* React Flow controls override -------------------------------------------- */
+
+.clotho-controls {
+  background: var(--surface-raised) !important;
+  border: 1px solid var(--surface-border) !important;
+  border-radius: var(--radius-sm) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+}
+
+.clotho-controls button {
+  background: var(--surface-raised) !important;
+  border-color: var(--surface-border) !important;
+  color: var(--text-secondary) !important;
+  fill: var(--text-secondary) !important;
+}
+
+.clotho-controls button:hover {
+  background: var(--surface-hover) !important;
+  color: var(--text-primary) !important;
+  fill: var(--text-primary) !important;
+}
+
+.clotho-controls button svg {
+  fill: inherit !important;
+}
+
+/* React Flow edge styles */
+.react-flow__edge-path {
+  stroke: var(--surface-border) !important;
+  stroke-width: 2 !important;
+}

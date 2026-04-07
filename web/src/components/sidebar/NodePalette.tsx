@@ -204,11 +204,10 @@ const tileLabelStyle: React.CSSProperties = {
   fontSize: 9,
   color: 'var(--text-secondary)',
   textAlign: 'center',
-  lineHeight: 1.2,
+  lineHeight: 1.3,
   maxWidth: '100%',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
+  wordBreak: 'break-word',
+  hyphens: 'auto',
 };
 
 // ---------------------------------------------------------------------------
@@ -249,8 +248,8 @@ export function NodePalette() {
   return (
     <aside
       style={{
-        width: 180,
-        minWidth: 180,
+        width: 210,
+        minWidth: 210,
         height: '100%',
         background: 'var(--surface-base)',
         borderRight: '1px solid var(--surface-border)',

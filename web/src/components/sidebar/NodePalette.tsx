@@ -237,13 +237,26 @@ export function NodePalette() {
     el.style.background = hovering ? 'var(--surface-hover)' : 'var(--surface-raised)';
   };
 
-  // Generate initials from preset name
-  const getInitials = (name: string) => {
+  // Generate unique initials from preset name
+  const getInitials = useCallback((name: string, allNames: string[]) => {
     const words = name.split(/\s+/).filter(Boolean);
-    return words.length >= 2
-      ? `${words[0][0].toUpperCase()}${words[1][0].toLowerCase()}`
-      : name.slice(0, 2);
-  };
+    if (words.length < 2) return name.slice(0, 2);
+
+    const simple = `${words[0][0].toUpperCase()}${words[1][0].toLowerCase()}`;
+
+    // Check for collisions with other presets
+    const hasCollision = allNames.some((other) => {
+      if (other === name) return false;
+      const ow = other.split(/\s+/).filter(Boolean);
+      if (ow.length < 2) return false;
+      return `${ow[0][0].toUpperCase()}${ow[1][0].toLowerCase()}` === simple;
+    });
+
+    if (!hasCollision) return simple;
+
+    // Use first two chars of the first word to disambiguate
+    return words[0].slice(0, 2).charAt(0).toUpperCase() + words[0].slice(1, 2).toLowerCase();
+  }, []);
 
   return (
     <aside
@@ -307,7 +320,7 @@ export function NodePalette() {
                 title={preset.name}
               >
                 <div style={tileIconStyle('var(--accent-soft)', 'var(--accent)')}>
-                  {getInitials(preset.name)}
+                  {getInitials(preset.name, presets.map((p) => p.name))}
                 </div>
                 <div style={tileLabelStyle}>{preset.name}</div>
               </div>

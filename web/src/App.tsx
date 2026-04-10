@@ -249,7 +249,7 @@ function AppContent() {
           display: 'flex',
           alignItems: 'center',
           gap: 12,
-          height: 44,
+          height: 48,
           padding: '0 16px',
           borderBottom: '1px solid var(--surface-border)',
           background: 'var(--surface-overlay)',
@@ -329,7 +329,8 @@ function AppContent() {
           disabled={!canUndo}
           title="Undo (Ctrl+Z)"
           style={{
-            padding: '4px 8px',
+            padding: '6px 10px',
+            minHeight: 32,
             borderRadius: 'var(--radius-sm)',
             border: '1px solid var(--surface-border)',
             background: 'transparent',
@@ -346,7 +347,8 @@ function AppContent() {
           disabled={!canRedo}
           title="Redo (Ctrl+Shift+Z)"
           style={{
-            padding: '4px 8px',
+            padding: '6px 10px',
+            minHeight: 32,
             borderRadius: 'var(--radius-sm)',
             border: '1px solid var(--surface-border)',
             background: 'transparent',
@@ -364,7 +366,8 @@ function AppContent() {
           style={
             isDirty
               ? {
-                  padding: '4px 12px',
+                  padding: '6px 12px',
+                  minHeight: 32,
                   borderRadius: 'var(--radius-sm)',
                   border: '1px solid var(--accent)',
                   background: 'var(--accent-soft)',
@@ -374,7 +377,8 @@ function AppContent() {
                   fontWeight: 600,
                 }
               : {
-                  padding: '4px 12px',
+                  padding: '6px 12px',
+                  minHeight: 32,
                   borderRadius: 'var(--radius-sm)',
                   border: '1px solid var(--surface-border)',
                   background: 'transparent',
@@ -392,7 +396,8 @@ function AppContent() {
           onClick={() => setTemplatesOpen(true)}
           title="Browse pipeline templates"
           style={{
-            padding: '4px 12px',
+            padding: '6px 12px',
+            minHeight: 32,
             borderRadius: 'var(--radius-sm)',
             border: '1px solid var(--surface-border)',
             background: 'transparent',
@@ -410,7 +415,8 @@ function AppContent() {
           disabled={!currentPipelineId}
           title="Export pipeline as JSON"
           style={{
-            padding: '4px 12px',
+            padding: '6px 12px',
+            minHeight: 32,
             borderRadius: 'var(--radius-sm)',
             border: '1px solid var(--surface-border)',
             background: 'transparent',
@@ -427,7 +433,8 @@ function AppContent() {
           disabled={!currentPipelineId}
           title="Import pipeline from JSON"
           style={{
-            padding: '4px 12px',
+            padding: '6px 12px',
+            minHeight: 32,
             borderRadius: 'var(--radius-sm)',
             border: '1px solid var(--surface-border)',
             background: 'transparent',
@@ -452,7 +459,8 @@ function AppContent() {
           onClick={() => setSettingsOpen(true)}
           title="Settings"
           style={{
-            padding: '4px 10px',
+            padding: '6px 10px',
+            minHeight: 32,
             borderRadius: 'var(--radius-sm)',
             border: '1px solid var(--surface-border)',
             background: 'transparent',
@@ -472,7 +480,8 @@ function AppContent() {
             }
           }}
           style={{
-            padding: '4px 10px',
+            padding: '6px 10px',
+            minHeight: 32,
             borderRadius: 'var(--radius-sm)',
             border: '1px solid var(--surface-border)',
             background: versionPanelIsOpen ? 'var(--accent-soft)' : 'transparent',

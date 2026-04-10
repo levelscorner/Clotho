@@ -53,7 +53,13 @@ function AgentNodeInner({ id, data, selected }: NodeProps<AgentNodeType>) {
       : label.slice(0, 2);
 
   return (
-    <div onClick={handleClick} role="button" tabIndex={0} onKeyDown={handleClick}>
+    <div
+      onClick={handleClick}
+      role="button"
+      tabIndex={0}
+      aria-label={`${label} agent, status: ${status || 'idle'}`}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClick(); } }}
+    >
       <BaseNode
         id={id}
         ports={data.ports}

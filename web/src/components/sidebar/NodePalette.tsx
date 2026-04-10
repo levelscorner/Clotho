@@ -247,6 +247,7 @@ export function NodePalette() {
 
   return (
     <aside
+      aria-label="Node palette"
       style={{
         width: 210,
         minWidth: 210,
@@ -258,7 +259,7 @@ export function NodePalette() {
       }}
     >
       {/* ---- AGENT ---- */}
-      <div style={sectionLabel}>Agent</div>
+      <h3 style={sectionLabel}>Agent</h3>
       <div style={gridStyle}>
         {/* Primary: blank agent */}
         <div
@@ -286,7 +287,7 @@ export function NodePalette() {
       {/* ---- PERSONALITIES ---- */}
       {presets.length > 0 && (
         <>
-          <div style={{ ...sectionLabel, fontSize: 9 }}>Personalities</div>
+          <h3 style={{ ...sectionLabel, fontSize: 9 }}>Personalities</h3>
           <div style={gridStyle}>
             {presets.map((preset) => (
               <div
@@ -316,7 +317,7 @@ export function NodePalette() {
       )}
 
       {/* ---- MEDIA ---- */}
-      <div style={sectionLabel}>Media</div>
+      <h3 style={sectionLabel}>Media</h3>
       <div style={gridStyle}>
         {MEDIA_ITEMS.map((item) => {
           const colorMap: Record<MediaType, { bg: string; fg: string }> = {
@@ -350,7 +351,7 @@ export function NodePalette() {
       </div>
 
       {/* ---- TOOLS ---- */}
-      <div style={sectionLabel}>Tools</div>
+      <h3 style={sectionLabel}>Tools</h3>
       <div style={gridStyle}>
         {TOOLS.map((item) => (
           <div

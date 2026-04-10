@@ -29,8 +29,8 @@
 .clotho-node__header {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-lg);
   border-bottom: 1px solid var(--surface-border);
 }
 
@@ -76,7 +76,7 @@
 /* Node body --------------------------------------------------------------- */
 
 .clotho-node__body {
-  padding: 10px 14px;
+  padding: var(--space-md) var(--space-lg);
 }
 
 .clotho-node__badge {
@@ -131,7 +131,7 @@
 /* Media preview ----------------------------------------------------------- */
 
 .clotho-node__media-preview {
-  padding: 6px 10px;
+  padding: var(--space-sm) var(--space-md);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -166,8 +166,8 @@
 .clotho-node__media-audio-placeholder {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
   color: var(--text-muted);
   font-size: 11px;
 }
@@ -176,7 +176,7 @@
 
 .clotho-node__progress-bar {
   height: 4px;
-  margin: 8px 14px;
+  margin: var(--space-sm) var(--space-lg);
   border-radius: 2px;
   background: var(--surface-base);
   overflow: hidden;
@@ -245,7 +245,7 @@
 .clotho-node__preview {
   background: var(--surface-base);
   border-radius: var(--radius-sm);
-  padding: 8px 10px;
+  padding: var(--space-sm) var(--space-md);
   font-size: 11px;
   font-family: var(--font-mono);
   color: var(--text-secondary);
@@ -280,8 +280,8 @@
 .clotho-node__footer {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-lg);
   border-top: 1px solid var(--surface-border);
   font-size: 11px;
   color: var(--text-muted);
@@ -301,19 +301,19 @@
 /* Error recovery actions -------------------------------------------------- */
 
 .clotho-node__error {
-  padding: 6px 14px;
+  padding: var(--space-sm) var(--space-lg);
   font-size: 11px;
   color: var(--status-failed);
 }
 
 .clotho-node__error-actions {
   display: flex;
-  gap: 6px;
-  padding: 4px 14px 8px;
+  gap: var(--space-sm);
+  padding: var(--space-xs) var(--space-lg) var(--space-sm);
 }
 
 .clotho-node__error-btn {
-  padding: 4px 10px;
+  padding: var(--space-xs) var(--space-md);
   border-radius: var(--radius-sm);
   border: 1px solid var(--surface-border);
   background: var(--surface-overlay);

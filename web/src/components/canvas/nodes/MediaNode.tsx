@@ -15,6 +15,12 @@ const MEDIA_ICONS: Record<MediaType, string> = {
   audio: '\u{1F50A}', // speaker
 };
 
+const EMPTY_COPY: Record<MediaType, string> = {
+  image: 'No image produced',
+  video: 'No clip produced',
+  audio: 'No audio produced',
+};
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -56,6 +62,8 @@ function MediaNodeInner({ id, data, selected }: NodeProps<MediaNodeType>) {
   const duration = stepResult?.duration_ms;
 
   const mediaVariantClass = `clotho-node--media-${mediaType}`;
+  const hasOutput = Boolean(output) && status === 'completed';
+  const isEmptyComplete = status === 'completed' && !output;
 
   return (
     <div onClick={handleClick} role="button" tabIndex={0} onKeyDown={handleClick}>
@@ -76,39 +84,95 @@ function MediaNodeInner({ id, data, selected }: NodeProps<MediaNodeType>) {
         </div>
 
         <div className="clotho-node__body">
-          <span className="clotho-node__badge">{config.provider}</span>{' '}
-          <span className="clotho-node__badge">{config.model}</span>
+          {/* IMAGE variant --------------------------------------------------- */}
+          {mediaType === 'image' && (
+            <div className="clotho-node__matte">
+              <div className="clotho-node__media-preview clotho-node__media-preview--image">
+                {hasOutput ? (
+                  <img src={output} alt="Generated image" />
+                ) : isEmptyComplete ? (
+                  <span className="clotho-node__media-empty">{EMPTY_COPY.image}</span>
+                ) : (
+                  <span className="clotho-node__media-placeholder-label" aria-hidden>
+                    IMG
+                  </span>
+                )}
+              </div>
+              <span className="clotho-node__media-readout">
+                {config.provider} &middot; {config.model}
+              </span>
+            </div>
+          )}
+
+          {/* VIDEO variant --------------------------------------------------- */}
+          {mediaType === 'video' && (
+            <div className="clotho-node__reel">
+              <span className="clotho-node__reel-perf clotho-node__reel-perf--top" aria-hidden />
+              <div className="clotho-node__reel-frames">
+                {hasOutput ? (
+                  <>
+                    <div className="clotho-node__reel-frame clotho-node__reel-frame--thumb" style={{ backgroundImage: `url(${output})` }} />
+                    <div className="clotho-node__reel-frame clotho-node__reel-frame--thumb" style={{ backgroundImage: `url(${output})` }} />
+                    <div className="clotho-node__reel-frame clotho-node__reel-frame--thumb" style={{ backgroundImage: `url(${output})` }} />
+                    <div className="clotho-node__reel-frame clotho-node__reel-frame--thumb" style={{ backgroundImage: `url(${output})` }} />
+                  </>
+                ) : isEmptyComplete ? (
+                  <span className="clotho-node__media-empty">{EMPTY_COPY.video}</span>
+                ) : (
+                  <>
+                    <div className="clotho-node__reel-frame" />
+                    <div className="clotho-node__reel-frame" />
+                    <div className="clotho-node__reel-frame" />
+                    <div className="clotho-node__reel-frame" />
+                  </>
+                )}
+              </div>
+              <span className="clotho-node__reel-perf clotho-node__reel-perf--bottom" aria-hidden />
+              <span className="clotho-node__media-readout">
+                {config.duration != null ? `${config.duration}s` : '—'}
+                {' \u00B7 '}
+                {config.provider}
+                {' \u00B7 '}
+                {status ?? 'idle'}
+              </span>
+            </div>
+          )}
+
+          {/* AUDIO variant --------------------------------------------------- */}
+          {mediaType === 'audio' && (
+            <div className="clotho-node__scope">
+              {isEmptyComplete ? (
+                <span className="clotho-node__media-empty">{EMPTY_COPY.audio}</span>
+              ) : (
+                <svg
+                  className="clotho-node__scope-svg"
+                  viewBox="0 0 200 60"
+                  preserveAspectRatio="none"
+                  aria-hidden
+                >
+                  <path
+                    className="clotho-node__scope-path"
+                    d="M0 30 Q 10 10 20 30 T 40 30 T 60 25 T 80 35 T 100 20 T 120 40 T 140 28 T 160 32 T 180 30 T 200 30"
+                    stroke="var(--port-audio)"
+                    strokeWidth="1.5"
+                    fill="none"
+                    opacity="0.85"
+                  />
+                </svg>
+              )}
+              <span className="clotho-node__media-readout">
+                {config.voice ?? 'default voice'}
+                {' \u00B7 '}
+                {config.provider}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Running: progress bar */}
         {status === 'running' && (
           <div className="clotho-node__progress-bar">
             <div className="clotho-node__progress-bar-fill" />
-          </div>
-        )}
-
-        {/* Completed: media preview */}
-        {output && status === 'completed' && mediaType === 'image' && (
-          <div className="clotho-node__media-preview">
-            <img src={output} alt="Generated image" />
-          </div>
-        )}
-
-        {output && status === 'completed' && mediaType === 'video' && (
-          <div className="clotho-node__media-preview clotho-node__media-preview--video">
-            <img src={output} alt="Video thumbnail" />
-            <div className="clotho-node__media-play-overlay">
-              {'\u25B6'}
-            </div>
-          </div>
-        )}
-
-        {output && status === 'completed' && mediaType === 'audio' && (
-          <div className="clotho-node__media-audio-placeholder">
-            <span style={{ fontSize: 14 }} aria-hidden>
-              {'\u25B6'}
-            </span>
-            <span>Audio ready</span>
           </div>
         )}
 

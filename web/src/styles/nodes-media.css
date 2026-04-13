@@ -1,0 +1,207 @@
+/* ---------------------------------------------------------------------------
+   Media node styles — matte (image), reel (video), oscilloscope (audio).
+   Lane F — adds visual depth to the three media variants.
+   --------------------------------------------------------------------------- */
+
+/* Shared readout — mono caption used across all three media variants ------ */
+
+.clotho-node__media-readout {
+  display: block;
+  margin-top: var(--space-xs);
+  padding: 0 var(--space-md);
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  color: var(--text-secondary);
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.clotho-node__media-empty {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  font-style: italic;
+  color: var(--text-muted);
+  padding: var(--space-sm) var(--space-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-height: 48px;
+}
+
+/* ---------------------------------------------------------------------------
+   IMAGE variant — matte board frame
+   --------------------------------------------------------------------------- */
+
+.clotho-node__matte {
+  padding: var(--space-sm) var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.clotho-node--media-image .clotho-node__media-preview--image {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin: 0;
+  min-height: 64px;
+  border: 6px solid #0d0d11;
+  border-radius: 4px;
+  background:
+    conic-gradient(
+      from 45deg at 50% 50%,
+      rgba(245, 158, 11, 0.18),
+      rgba(229, 168, 75, 0.06),
+      rgba(245, 158, 11, 0.18)
+    );
+  box-shadow:
+    inset 0 0 0 1px var(--surface-border),
+    0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.clotho-node--media-image .clotho-node__media-preview--image img {
+  display: block;
+  width: 100%;
+  max-height: 96px;
+  border-radius: 2px;
+  object-fit: cover;
+}
+
+.clotho-node__media-placeholder-label {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: rgba(0, 0, 0, 0.6);
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+/* ---------------------------------------------------------------------------
+   VIDEO variant — perforated reel with filmstrip frames
+   --------------------------------------------------------------------------- */
+
+.clotho-node__reel {
+  padding: var(--space-sm) var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: linear-gradient(
+    180deg,
+    rgba(239, 68, 68, 0.04),
+    rgba(0, 0, 0, 0) 60%
+  );
+}
+
+.clotho-node__reel-perf {
+  display: block;
+  height: 6px;
+  border-radius: 1px;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0 6px,
+    var(--surface-border) 6px 12px
+  );
+}
+
+.clotho-node__reel-frames {
+  display: flex;
+  gap: 3px;
+  height: 22px;
+  padding: 4px 0;
+}
+
+.clotho-node__reel-frame {
+  flex: 1;
+  min-width: 0;
+  border-radius: 1px;
+  background: linear-gradient(
+    160deg,
+    rgba(239, 68, 68, 0.18),
+    rgba(229, 168, 75, 0.05)
+  );
+  background-size: cover;
+  background-position: center;
+}
+
+.clotho-node__reel-frame--thumb {
+  background-repeat: no-repeat;
+  background-color: var(--surface-base);
+}
+
+/* ---------------------------------------------------------------------------
+   AUDIO variant — oscilloscope pocket with animated sine wave
+   --------------------------------------------------------------------------- */
+
+.clotho-node__scope {
+  margin: var(--space-sm) var(--space-md);
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--surface-overlay);
+  border-radius: 6px;
+  border: 1px solid var(--surface-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  min-height: 60px;
+  position: relative;
+  overflow: hidden;
+}
+
+.clotho-node__scope::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(6, 182, 212, 0.08),
+    transparent 70%
+  );
+  pointer-events: none;
+}
+
+.clotho-node__scope-svg {
+  display: block;
+  width: 100%;
+  height: 40px;
+  position: relative;
+  z-index: 1;
+}
+
+.clotho-node__scope-path {
+  transition: opacity var(--duration-normal) var(--ease-out);
+}
+
+.clotho-node__scope .clotho-node__media-readout {
+  padding: 0;
+  position: relative;
+  z-index: 1;
+}
+
+/* Running-state pulse for oscilloscope. `.clotho-node--running` is the
+   class repo applies while a step is executing (see nodes.css). */
+.clotho-node--running.clotho-node--media-audio .clotho-node__scope-path {
+  animation: clotho-audio-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes clotho-audio-pulse {
+  0%,
+  100% {
+    opacity: 0.85;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* Reduced motion --------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .clotho-node--running.clotho-node--media-audio .clotho-node__scope-path {
+    animation: none;
+    opacity: 0.85;
+  }
+}

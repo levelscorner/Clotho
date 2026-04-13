@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import type { ToolNodeConfig } from '../../lib/types';
 import { usePipelineStore } from '../../stores/pipelineStore';
+import { InspectorGroup } from './InspectorGroup';
 
 // ---------------------------------------------------------------------------
 // Styles
@@ -63,39 +64,53 @@ export function ToolInspector({ nodeId, label, config }: ToolInspectorProps) {
 
   return (
     <div>
-      <div style={fieldGroup}>
-        <label style={labelStyle}>Label</label>
-        <input
-          style={inputStyle}
-          value={label}
-          onChange={(e) => updateNodeLabel(nodeId, e.target.value)}
-        />
-      </div>
-
-      {config.tool_type === 'text_box' && (
+      <InspectorGroup title="Basics" defaultOpen>
         <div style={fieldGroup}>
-          <label style={labelStyle}>Content</label>
-          <textarea
-            style={textareaStyle}
-            value={config.content ?? ''}
-            onChange={(e) => update({ content: e.target.value })}
-            placeholder="Enter text content..."
-          />
-        </div>
-      )}
-
-      {(config.tool_type === 'image_box' ||
-        config.tool_type === 'video_box') && (
-        <div style={fieldGroup}>
-          <label style={labelStyle}>Media URL</label>
+          <label style={labelStyle}>Label</label>
           <input
             style={inputStyle}
-            value={config.media_url ?? ''}
-            onChange={(e) => update({ media_url: e.target.value })}
-            placeholder="https://..."
+            value={label}
+            onChange={(e) => updateNodeLabel(nodeId, e.target.value)}
           />
         </div>
-      )}
+
+        {config.tool_type === 'text_box' && (
+          <div style={fieldGroup}>
+            <label style={labelStyle}>Content</label>
+            <textarea
+              style={textareaStyle}
+              value={config.content ?? ''}
+              onChange={(e) => update({ content: e.target.value })}
+              placeholder="Enter text content..."
+            />
+          </div>
+        )}
+
+        {(config.tool_type === 'image_box' ||
+          config.tool_type === 'video_box') && (
+          <div style={fieldGroup}>
+            <label style={labelStyle}>Media URL</label>
+            <input
+              style={inputStyle}
+              value={config.media_url ?? ''}
+              onChange={(e) => update({ media_url: e.target.value })}
+              placeholder="https://..."
+            />
+          </div>
+        )}
+      </InspectorGroup>
+
+      <InspectorGroup title="Advanced">
+        <div
+          style={{
+            fontSize: 12,
+            color: 'var(--text-muted)',
+            padding: '4px 0',
+          }}
+        >
+          No advanced settings for this tool.
+        </div>
+      </InspectorGroup>
     </div>
   );
 }

@@ -1,0 +1,48 @@
+/* ---------------------------------------------------------------------------
+   OllamaModelDropdown — native <select> styled with Clotho tokens.
+   Shows models fetched from `GET /v1/llm/models?provider=ollama`.
+   --------------------------------------------------------------------------- */
+
+.clotho-ollama-dropdown {
+  width: 100%;
+}
+
+.clotho-ollama-dropdown__select {
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--surface-border);
+  background: var(--surface-base);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.clotho-ollama-dropdown__select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+  border-color: var(--accent);
+}
+
+.clotho-ollama-dropdown__select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.clotho-ollama-dropdown__hint {
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.clotho-ollama-dropdown__hint code {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--surface-border);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-secondary);
+}

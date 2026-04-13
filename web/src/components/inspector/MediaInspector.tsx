@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { MediaNodeConfig, Credential } from '../../lib/types';
+import type { MediaNodeConfig, Credential, StepResult } from '../../lib/types';
 import { usePipelineStore } from '../../stores/pipelineStore';
 import { api } from '../../lib/api';
+import { InspectorGroup } from './InspectorGroup';
+import { OllamaModelDropdown } from './OllamaModelDropdown';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -61,13 +63,25 @@ interface MediaInspectorProps {
   nodeId: string;
   label: string;
   config: MediaNodeConfig;
+  stepResult?: StepResult;
+}
+
+function errorImplicatesAdvanced(step?: StepResult): boolean {
+  if (!step || step.status !== 'failed' || !step.error) return false;
+  const e = step.error.toLowerCase();
+  return (
+    e.includes('model') ||
+    e.includes('credential') ||
+    e.includes('api key') ||
+    e.includes('api_key')
+  );
 }
 
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
-export function MediaInspector({ nodeId, label, config }: MediaInspectorProps) {
+export function MediaInspector({ nodeId, label, config, stepResult }: MediaInspectorProps) {
   const updateNodeConfig = usePipelineStore((s) => s.updateNodeConfig);
   const updateNodeLabel = usePipelineStore((s) => s.updateNodeLabel);
 
@@ -119,56 +133,69 @@ export function MediaInspector({ nodeId, label, config }: MediaInspectorProps) {
         Media Configuration
       </div>
 
-      <div style={fieldGroup}>
-        <label style={labelStyle}>Label</label>
-        <input
-          style={inputStyle}
-          value={label}
-          onChange={(e) => updateNodeLabel(nodeId, e.target.value)}
-        />
-      </div>
+      <InspectorGroup title="Basics" defaultOpen>
+        <div style={fieldGroup}>
+          <label style={labelStyle}>Label</label>
+          <input
+            style={inputStyle}
+            value={label}
+            onChange={(e) => updateNodeLabel(nodeId, e.target.value)}
+          />
+        </div>
 
-      <div style={fieldGroup}>
-        <label style={labelStyle}>Provider</label>
-        <select
-          style={inputStyle}
-          value={config.provider}
-          onChange={(e) => handleProviderChange(e.target.value)}
-        >
-          {PROVIDERS.map((p) => (
-            <option key={p} value={p}>
-              {p}
-            </option>
-          ))}
-        </select>
-      </div>
+        <div style={fieldGroup}>
+          <label style={labelStyle}>Provider</label>
+          <select
+            style={inputStyle}
+            value={config.provider}
+            onChange={(e) => handleProviderChange(e.target.value)}
+          >
+            {PROVIDERS.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
+        </div>
 
-      <div style={fieldGroup}>
-        <label style={labelStyle}>Model</label>
-        <select
-          style={inputStyle}
-          value={config.model}
-          onChange={(e) => update({ model: e.target.value })}
-        >
-          {modelsForProvider.map((m) => (
-            <option key={m} value={m}>
-              {m}
-            </option>
-          ))}
-        </select>
-      </div>
+        <div style={fieldGroup}>
+          <label style={labelStyle}>Model</label>
+          {config.provider === 'ollama' ? (
+            <OllamaModelDropdown
+              value={config.model}
+              onChange={(m) => update({ model: m })}
+            />
+          ) : (
+            <select
+              style={inputStyle}
+              value={config.model}
+              onChange={(e) => update({ model: e.target.value })}
+            >
+              {modelsForProvider.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
 
-      <div style={fieldGroup}>
-        <label style={labelStyle}>Prompt Template</label>
-        <textarea
-          style={textareaStyle}
-          value={config.prompt}
-          onChange={(e) => update({ prompt: e.target.value })}
-          placeholder="Use {{input}} to reference incoming data"
-        />
-      </div>
+        <div style={fieldGroup}>
+          <label style={labelStyle}>Prompt Template</label>
+          <textarea
+            style={textareaStyle}
+            value={config.prompt}
+            onChange={(e) => update({ prompt: e.target.value })}
+            placeholder="Use {{input}} to reference incoming data"
+          />
+        </div>
+      </InspectorGroup>
 
-      {showAspectRatio && (
+      <InspectorGroup
+        title="Advanced"
+        forceOpen={errorImplicatesAdvanced(stepResult)}
+      >
+        {showAspectRatio && (
         <div style={fieldGroup}>
           <label style={labelStyle}>Aspect Ratio</label>
           <select
@@ -275,6 +302,7 @@ export function MediaInspector({ nodeId, label, config }: MediaInspectorProps) {
           </div>
         )}
       </div>
+      </InspectorGroup>
     </div>
   );
 }

@@ -1,7 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { AgentNodeConfig, TaskType, PortType, ProviderInfo, Credential } from '../../lib/types';
+import type {
+  AgentNodeConfig,
+  TaskType,
+  PortType,
+  ProviderInfo,
+  Credential,
+  StepResult,
+} from '../../lib/types';
 import { usePipelineStore } from '../../stores/pipelineStore';
 import { api } from '../../lib/api';
+import { InspectorGroup } from './InspectorGroup';
+import { OllamaModelDropdown } from './OllamaModelDropdown';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -94,13 +103,30 @@ interface AgentInspectorProps {
   nodeId: string;
   label: string;
   config: AgentNodeConfig;
+  stepResult?: StepResult;
+}
+
+/**
+ * Heuristic: does the step error plausibly relate to an Advanced field
+ * (model name, credential/API key)? Used to auto-expand the Advanced group
+ * when an execution fails for a reason the user can fix there.
+ */
+function errorImplicatesAdvanced(step?: StepResult): boolean {
+  if (!step || step.status !== 'failed' || !step.error) return false;
+  const e = step.error.toLowerCase();
+  return (
+    e.includes('model') ||
+    e.includes('credential') ||
+    e.includes('api key') ||
+    e.includes('api_key')
+  );
 }
 
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
-export function AgentInspector({ nodeId, label, config }: AgentInspectorProps) {
+export function AgentInspector({ nodeId, label, config, stepResult }: AgentInspectorProps) {
   const updateNodeConfig = usePipelineStore((s) => s.updateNodeConfig);
   const updateNodeLabel = usePipelineStore((s) => s.updateNodeLabel);
 
@@ -192,181 +218,195 @@ export function AgentInspector({ nodeId, label, config }: AgentInspectorProps) {
         </div>
       )}
 
-      <div style={fieldGroup}>
-        <label style={labelStyle}>Label</label>
-        <input
-          style={inputStyle}
-          value={label}
-          onChange={(e) => updateNodeLabel(nodeId, e.target.value)}
-        />
-      </div>
+      <InspectorGroup title="Basics" defaultOpen>
+        <div style={fieldGroup}>
+          <label style={labelStyle}>Label</label>
+          <input
+            style={inputStyle}
+            value={label}
+            onChange={(e) => updateNodeLabel(nodeId, e.target.value)}
+          />
+        </div>
 
-      <div style={fieldGroup}>
-        <label style={labelStyle}>Persona</label>
-        <input
-          style={inputStyle}
-          value={config.role.persona}
-          onChange={(e) => updateRole({ persona: e.target.value })}
-        />
-      </div>
+        <div style={fieldGroup}>
+          <label style={labelStyle}>Persona</label>
+          <input
+            style={inputStyle}
+            value={config.role.persona}
+            onChange={(e) => updateRole({ persona: e.target.value })}
+          />
+        </div>
 
-      <div style={fieldGroup}>
-        <label style={labelStyle}>System Prompt</label>
-        <textarea
-          style={textareaStyle}
-          value={config.role.system_prompt}
-          onChange={(e) => updateRole({ system_prompt: e.target.value })}
-        />
-      </div>
+        <div style={fieldGroup}>
+          <label style={labelStyle}>System Prompt</label>
+          <textarea
+            style={textareaStyle}
+            value={config.role.system_prompt}
+            onChange={(e) => updateRole({ system_prompt: e.target.value })}
+          />
+        </div>
 
-      <div style={fieldGroup}>
-        <label style={labelStyle}>
-          Provider
-          {selectedProvider && !selectedProvider.available && (
-            <span style={warningBadgeStyle}>No API Key</span>
-          )}
-        </label>
-        <select
-          style={inputStyle}
-          value={config.provider}
-          onChange={(e) => handleProviderChange(e.target.value)}
-        >
-          {providers.map((p) => (
-            <option key={p.name} value={p.name}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div style={fieldGroup}>
-        <label style={labelStyle}>Model</label>
-        <select
-          style={inputStyle}
-          value={config.model}
-          onChange={(e) => update({ model: e.target.value })}
-        >
-          {modelsForProvider.map((m) => (
-            <option key={m} value={m}>
-              {m}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div style={fieldGroup}>
-        <label style={labelStyle}>API Key</label>
-        {credentials.length > 0 ? (
+        <div style={fieldGroup}>
+          <label style={labelStyle}>
+            Provider
+            {selectedProvider && !selectedProvider.available && (
+              <span style={warningBadgeStyle}>No API Key</span>
+            )}
+          </label>
           <select
             style={inputStyle}
-            value={config.credential_id ?? ''}
-            onChange={(e) =>
-              update({
-                credential_id: e.target.value || undefined,
-              })
-            }
+            value={config.provider}
+            onChange={(e) => handleProviderChange(e.target.value)}
           >
-            <option value="">Use server default</option>
-            {credentials.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.provider} — {c.label}
+            {providers.map((p) => (
+              <option key={p.name} value={p.name}>
+                {p.name}
               </option>
             ))}
           </select>
-        ) : (
-          <div
-            style={{
-              fontSize: 12,
-              color: 'var(--text-muted)',
-              padding: '6px 0',
-            }}
-          >
-            No API keys saved.{' '}
-            <span
+        </div>
+
+        <div style={fieldGroup}>
+          <label style={labelStyle}>Model</label>
+          {config.provider === 'ollama' ? (
+            <OllamaModelDropdown
+              value={config.model}
+              onChange={(m) => update({ model: m })}
+            />
+          ) : (
+            <select
+              style={inputStyle}
+              value={config.model}
+              onChange={(e) => update({ model: e.target.value })}
+            >
+              {modelsForProvider.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      </InspectorGroup>
+
+      <InspectorGroup
+        title="Advanced"
+        forceOpen={errorImplicatesAdvanced(stepResult)}
+      >
+        <div style={fieldGroup}>
+          <label style={labelStyle}>API Key</label>
+          {credentials.length > 0 ? (
+            <select
+              style={inputStyle}
+              value={config.credential_id ?? ''}
+              onChange={(e) =>
+                update({
+                  credential_id: e.target.value || undefined,
+                })
+              }
+            >
+              <option value="">Use server default</option>
+              {credentials.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.provider} — {c.label}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <div
               style={{
-                color: 'var(--accent)',
-                cursor: 'pointer',
+                fontSize: 12,
+                color: 'var(--text-muted)',
+                padding: '6px 0',
               }}
             >
-              Add one in Settings
-            </span>
-          </div>
-        )}
-      </div>
+              No API keys saved.{' '}
+              <span
+                style={{
+                  color: 'var(--accent)',
+                  cursor: 'pointer',
+                }}
+              >
+                Add one in Settings
+              </span>
+            </div>
+          )}
+        </div>
 
-      <div style={fieldGroup}>
-        <label style={labelStyle}>
-          Temperature: {config.temperature.toFixed(1)}
-        </label>
-        <input
-          type="range"
-          min={0}
-          max={2}
-          step={0.1}
-          value={config.temperature}
-          onChange={(e) => update({ temperature: parseFloat(e.target.value) })}
-          style={{ width: '100%' }}
-        />
-      </div>
+        <div style={fieldGroup}>
+          <label style={labelStyle}>
+            Temperature: {config.temperature.toFixed(1)}
+          </label>
+          <input
+            type="range"
+            min={0}
+            max={2}
+            step={0.1}
+            value={config.temperature}
+            onChange={(e) => update({ temperature: parseFloat(e.target.value) })}
+            style={{ width: '100%' }}
+          />
+        </div>
 
-      <div style={fieldGroup}>
-        <label style={labelStyle}>Max Tokens</label>
-        <input
-          type="number"
-          style={inputStyle}
-          value={config.max_tokens}
-          min={1}
-          onChange={(e) =>
-            update({ max_tokens: parseInt(e.target.value, 10) || 1 })
-          }
-        />
-      </div>
+        <div style={fieldGroup}>
+          <label style={labelStyle}>Max Tokens</label>
+          <input
+            type="number"
+            style={inputStyle}
+            value={config.max_tokens}
+            min={1}
+            onChange={(e) =>
+              update({ max_tokens: parseInt(e.target.value, 10) || 1 })
+            }
+          />
+        </div>
 
-      <div style={fieldGroup}>
-        <label style={labelStyle}>Task Type</label>
-        <input
-          list="clotho-task-types"
-          style={inputStyle}
-          value={config.task.task_type}
-          onChange={(e) =>
-            updateTask({ task_type: e.target.value as TaskType })
-          }
-          placeholder="Type or select..."
-        />
-        <datalist id="clotho-task-types">
-          {TASK_TYPES.map((t) => (
-            <option key={t} value={t} />
-          ))}
-        </datalist>
-      </div>
+        <div style={fieldGroup}>
+          <label style={labelStyle}>Task Type</label>
+          <input
+            list="clotho-task-types"
+            style={inputStyle}
+            value={config.task.task_type}
+            onChange={(e) =>
+              updateTask({ task_type: e.target.value as TaskType })
+            }
+            placeholder="Type or select..."
+          />
+          <datalist id="clotho-task-types">
+            {TASK_TYPES.map((t) => (
+              <option key={t} value={t} />
+            ))}
+          </datalist>
+        </div>
 
-      <div style={fieldGroup}>
-        <label style={labelStyle}>Output Type</label>
-        <input
-          list="clotho-output-types"
-          style={inputStyle}
-          value={config.task.output_type}
-          onChange={(e) =>
-            updateTask({ output_type: e.target.value as PortType })
-          }
-          placeholder="Type or select..."
-        />
-        <datalist id="clotho-output-types">
-          {PORT_TYPES.map((t) => (
-            <option key={t} value={t} />
-          ))}
-        </datalist>
-      </div>
+        <div style={fieldGroup}>
+          <label style={labelStyle}>Output Type</label>
+          <input
+            list="clotho-output-types"
+            style={inputStyle}
+            value={config.task.output_type}
+            onChange={(e) =>
+              updateTask({ output_type: e.target.value as PortType })
+            }
+            placeholder="Type or select..."
+          />
+          <datalist id="clotho-output-types">
+            {PORT_TYPES.map((t) => (
+              <option key={t} value={t} />
+            ))}
+          </datalist>
+        </div>
 
-      <div style={fieldGroup}>
-        <label style={labelStyle}>Template</label>
-        <textarea
-          style={textareaStyle}
-          value={config.task.template}
-          onChange={(e) => updateTask({ template: e.target.value })}
-          placeholder="Use {{input}} to reference incoming data"
-        />
-      </div>
+        <div style={fieldGroup}>
+          <label style={labelStyle}>Template</label>
+          <textarea
+            style={textareaStyle}
+            value={config.task.template}
+            onChange={(e) => updateTask({ template: e.target.value })}
+            placeholder="Use {{input}} to reference incoming data"
+          />
+        </div>
+      </InspectorGroup>
     </div>
   );
 }

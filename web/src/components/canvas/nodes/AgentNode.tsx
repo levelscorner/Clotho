@@ -43,6 +43,16 @@ function AgentNodeInner({ id, data, selected }: NodeProps<AgentNodeType>) {
   const error = stepResult?.error;
   const cost = stepResult?.cost;
   const duration = stepResult?.duration_ms;
+  const tokens = stepResult?.tokens_used;
+
+  // Preset-based personality dispatch. Mirrors MediaNode's `clotho-node--media-${mediaType}` pattern.
+  const presetCategory = config.preset_category;
+  const presetClass =
+    presetCategory === 'script'
+      ? 'clotho-node--agent-script'
+      : presetCategory === 'crafter'
+        ? 'clotho-node--agent-crafter'
+        : 'clotho-node--agent-generic';
 
   // Generate 2-letter initials from label (e.g., "Script Writer" -> "Sw")
   const label = config.role.persona || data.label;
@@ -65,6 +75,7 @@ function AgentNodeInner({ id, data, selected }: NodeProps<AgentNodeType>) {
         ports={data.ports}
         variant="agent"
         selected={selected}
+        className={presetClass}
       >
         <div className="clotho-node__header">
           <div className="clotho-node__icon clotho-node__icon--agent">
@@ -112,6 +123,21 @@ function AgentNodeInner({ id, data, selected }: NodeProps<AgentNodeType>) {
             <div className="clotho-node__preview" style={{ fontStyle: 'italic' }}>
               Ready to execute
             </div>
+          )}
+
+          {/* Preset-specific readouts */}
+          {presetClass === 'clotho-node--agent-script' && status !== 'failed' && (
+            <div className="clotho-node__script-readout">
+              {tokens != null ? `${tokens} tokens` : '—'}
+            </div>
+          )}
+          {presetClass === 'clotho-node--agent-crafter' && status !== 'failed' && !output && (
+            <div className="clotho-node__crafter-lcd clotho-node__crafter-lcd--empty">
+              —
+            </div>
+          )}
+          {presetClass === 'clotho-node--agent-crafter' && output && status !== 'failed' && (
+            <div className="clotho-node__crafter-lcd">{output}</div>
           )}
         </div>
 

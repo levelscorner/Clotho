@@ -68,16 +68,31 @@ function clearPersistedAuth(): void {
 // Store
 // ---------------------------------------------------------------------------
 
-const initial = loadPersistedAuth();
+const NO_AUTH =
+  (import.meta.env.VITE_NO_AUTH as string | undefined) === 'true';
+
+const LOCAL_DEV_USER: AuthUser = {
+  id: '00000000-0000-0000-0000-000000000001',
+  email: 'you@local',
+  name: 'Local Dev',
+};
+
+const initial = NO_AUTH
+  ? { token: 'no-auth', user: LOCAL_DEV_USER }
+  : loadPersistedAuth();
 
 export const useAuthStore = create<AuthState>((set) => ({
   token: initial.token,
   user: initial.user,
-  isAuthenticated: initial.token !== null,
+  isAuthenticated: NO_AUTH ? true : initial.token !== null,
   isLoading: false,
   error: null,
 
   login: async (email: string, password: string) => {
+    if (NO_AUTH) {
+      set({ token: 'no-auth', user: LOCAL_DEV_USER, isAuthenticated: true });
+      return;
+    }
     set({ isLoading: true, error: null });
     try {
       const res = await fetch('/api/auth/login', {
@@ -108,6 +123,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   register: async (email: string, password: string, name: string) => {
+    if (NO_AUTH) {
+      set({ token: 'no-auth', user: LOCAL_DEV_USER, isAuthenticated: true });
+      return;
+    }
     set({ isLoading: true, error: null });
     try {
       const res = await fetch('/api/auth/register', {
@@ -138,11 +157,18 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logout: () => {
+    if (NO_AUTH) {
+      // No-op in unauthenticated mode — identity is ambient.
+      return;
+    }
     clearPersistedAuth();
     set({ token: null, user: null, isAuthenticated: false, error: null });
   },
 
   refreshToken: async () => {
+    if (NO_AUTH) {
+      return;
+    }
     const refreshToken = localStorage.getItem(STORAGE_KEY_REFRESH);
     if (!refreshToken) {
       clearPersistedAuth();

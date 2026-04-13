@@ -28,7 +28,7 @@ const panelStyle: React.CSSProperties = {
   borderLeft: '1px solid #1e2030',
   display: 'flex',
   flexDirection: 'column',
-  zIndex: 20,
+  // zIndex migrated — use .clotho-z-overlay on the rendered element
 };
 
 const headerStyle: React.CSSProperties = {
@@ -118,7 +118,7 @@ const confirmOverlayStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  zIndex: 100,
+  // zIndex migrated — use .clotho-z-modal on the rendered element
 };
 
 const confirmBoxStyle: React.CSSProperties = {
@@ -193,7 +193,7 @@ export function VersionPanel() {
 
   return (
     <>
-      <div style={panelStyle}>
+      <div className="clotho-z-overlay" style={panelStyle}>
         <div style={headerStyle}>
           <span style={titleStyle}>Version History</span>
           <button
@@ -233,7 +233,7 @@ export function VersionPanel() {
       </div>
 
       {confirmVersion && (
-        <div style={confirmOverlayStyle} onClick={() => setConfirmVersion(null)}>
+        <div className="clotho-z-modal" style={confirmOverlayStyle} onClick={() => setConfirmVersion(null)}>
           <div style={confirmBoxStyle} onClick={(e) => e.stopPropagation()}>
             <div style={{ fontWeight: 600, marginBottom: 8 }}>
               Restore Version

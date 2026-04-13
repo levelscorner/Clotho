@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import '@xyflow/react/dist/style.css';
 import './styles/nodes.css';
 
@@ -12,6 +12,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { VersionPanel } from './components/versioning/VersionPanel';
 import { LoginPage } from './components/auth/LoginPage';
 import { RegisterPage } from './components/auth/RegisterPage';
+import { AuthBanner } from './components/AuthBanner';
 import { SettingsPanel } from './components/settings/SettingsPanel';
 import { TemplateGallery } from './components/templates/TemplateGallery';
 import { useProjectStore } from './stores/projectStore';
@@ -19,8 +20,10 @@ import { usePipelineStore } from './stores/pipelineStore';
 import { useHistoryStore } from './stores/historyStore';
 import { useVersionStore } from './stores/versionStore';
 import { useAuthStore } from './stores/authStore';
+import { useUIStore } from './stores/uiStore';
 import { useSSE } from './hooks/useSSE';
 import { useUndoRedo } from './hooks/useUndoRedo';
+import { useGlobalKeyboardShortcuts } from './hooks/useGlobalKeyboardShortcuts';
 import { useExecutionStore } from './stores/executionStore';
 import { api } from './lib/api';
 import type { ProviderInfo } from './lib/types';
@@ -61,7 +64,9 @@ function AppContent() {
   const [loading, setLoading] = useState(true);
   const [noProvidersAvailable, setNoProvidersAvailable] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [templatesOpen, setTemplatesOpen] = useState(false);
+  const templatesOpen = useUIStore((s) => s.templateGalleryOpen);
+  const openTemplates = useUIStore((s) => s.openTemplateGallery);
+  const closeTemplates = useUIStore((s) => s.closeTemplateGallery);
   const importInputRef = useRef<HTMLInputElement>(null);
 
   // Connect SSE when we have an execution
@@ -69,6 +74,9 @@ function AppContent() {
 
   // Keyboard shortcuts for undo/redo
   useUndoRedo();
+
+  // Global shortcuts (⌘K opens template gallery, Escape closes it)
+  useGlobalKeyboardShortcuts();
 
   // Fetch providers and check availability
   useEffect(() => {
@@ -393,8 +401,8 @@ function AppContent() {
         </button>
 
         <button
-          onClick={() => setTemplatesOpen(true)}
-          title="Browse pipeline templates"
+          onClick={openTemplates}
+          title="Browse pipeline templates (⌘K)"
           style={{
             padding: '6px 12px',
             minHeight: 32,
@@ -510,18 +518,22 @@ function AppContent() {
       )}
 
       {/* Template gallery modal */}
-      {templatesOpen && (
-        <TemplateGallery onClose={() => setTemplatesOpen(false)} />
-      )}
+      {templatesOpen && <TemplateGallery onClose={closeTemplates} />}
     </div>
   );
 }
+
+const NO_AUTH =
+  (import.meta.env.VITE_NO_AUTH as string | undefined) === 'true';
 
 function AuthGate() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [authView, setAuthView] = useState<'login' | 'register'>('login');
 
-  if (!isAuthenticated) {
+  // When NO_AUTH is on, skip the login early-return entirely and go straight
+  // to the authenticated app. The AuthBanner renders above the top bar as the
+  // visible reminder that identity is bypassed.
+  if (!NO_AUTH && !isAuthenticated) {
     return authView === 'login' ? (
       <LoginPage onSwitchToRegister={() => setAuthView('register')} />
     ) : (
@@ -531,12 +543,37 @@ function AuthGate() {
 
   return (
     <ReactFlowProvider>
-      <AppContent />
+      {NO_AUTH && <AuthBanner />}
+      <div className={NO_AUTH ? 'app-root--no-auth' : undefined}>
+        <AppContent />
+      </div>
     </ReactFlowProvider>
   );
 }
 
+// Lazy-loaded, dev-only visual testbed. Only reachable when running a dev
+// build (`import.meta.env.DEV === true`) — the production bundle never sees
+// this page because the import is behind the DEV guard.
+const DevNodesLazy = React.lazy(() => import('./pages/DevNodes'));
+
+function isDevNodesRoute(): boolean {
+  if (!import.meta.env.DEV) return false;
+  if (typeof window === 'undefined') return false;
+  return window.location.pathname === '/dev/nodes';
+}
+
 export default function App() {
+  // Dev-only: bypass auth + bootstrap entirely when visiting /dev/nodes.
+  if (isDevNodesRoute()) {
+    return (
+      <ErrorBoundary>
+        <React.Suspense fallback={null}>
+          <DevNodesLazy />
+        </React.Suspense>
+      </ErrorBoundary>
+    );
+  }
+
   return (
     <ErrorBoundary>
       <AuthGate />

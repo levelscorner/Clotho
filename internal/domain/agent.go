@@ -43,6 +43,11 @@ type AgentNodeConfig struct {
 	MaxTokens    int        `json:"max_tokens"`
 	CostCap      *float64   `json:"cost_cap,omitempty"`
 	CredentialID string     `json:"credential_id,omitempty"`
+	// PresetCategory is a dispatch key used by the frontend to render
+	// specialized node styling/behavior. Valid values: "script", "crafter",
+	// or empty (generic). Populated when an agent node is created from a
+	// built-in preset; omitted otherwise.
+	PresetCategory string `json:"preset_category,omitempty"`
 }
 
 // DefaultAgentPorts returns the standard input/output ports for an agent node.

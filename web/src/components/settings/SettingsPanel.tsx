@@ -7,11 +7,11 @@ import { useAuthStore } from '../../stores/authStore';
 // Styles (DESIGN.md tokens)
 // ---------------------------------------------------------------------------
 
+// zIndex migrated to token — see global.css .clotho-z-modal
 const overlayStyle: React.CSSProperties = {
   position: 'fixed',
   inset: 0,
   background: 'rgba(0, 0, 0, 0.6)',
-  zIndex: 1000,
   display: 'flex',
   justifyContent: 'flex-end',
 };
@@ -230,7 +230,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
   );
 
   return (
-    <div style={overlayStyle} onClick={onClose}>
+    <div className="clotho-z-modal" style={overlayStyle} onClick={onClose}>
       <div
         style={{ ...panelStyle, position: 'relative' }}
         onClick={(e) => e.stopPropagation()}

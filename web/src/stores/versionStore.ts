@@ -1,12 +1,5 @@
 import { create } from 'zustand';
-import type { Node, Edge as RFEdge } from '@xyflow/react';
-import type {
-  PipelineVersion,
-  PipelineNodeData,
-  AgentNodeConfig,
-  ToolNodeConfig,
-  Viewport,
-} from '../lib/types';
+import type { PipelineVersion } from '../lib/types';
 import { api } from '../lib/api';
 import { usePipelineStore } from './pipelineStore';
 import { useHistoryStore } from './historyStore';

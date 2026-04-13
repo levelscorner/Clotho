@@ -30,8 +30,11 @@ type Deps struct {
 	LLMRegistry      *llm.ProviderRegistry
 	Queue            *queue.Queue
 	EventBus         *engine.EventBus
-	JWTSecret        string
-	JWTExpiry        time.Duration
+	JWTSecret         string
+	JWTExpiry         time.Duration
+	OllamaURL         string
+	NoAuth            bool
+	AcknowledgeNoAuth bool
 }
 
 // NewRouter creates a chi.Router with all middleware and routes mounted.
@@ -66,8 +69,13 @@ func NewRouter(deps Deps) chi.Router {
 	// Protected routes group
 	r.Group(func(r chi.Router) {
 		if deps.JWTSecret != "" {
-			// JWT auth: inject user/tenant from token
-			r.Use(middleware.Auth(deps.JWTSecret))
+			// JWT auth: inject user/tenant from token.
+			// AuthWithConfig honors NoAuth + AcknowledgeNoAuth for dev bypass mode.
+			r.Use(middleware.AuthWithConfig(middleware.AuthConfig{
+				JWTSecret:         deps.JWTSecret,
+				NoAuth:            deps.NoAuth,
+				AcknowledgeNoAuth: deps.AcknowledgeNoAuth,
+			}))
 		} else {
 			// Dev mode fallback: hardcoded tenant
 			r.Use(middleware.Tenant)
@@ -81,6 +89,7 @@ func NewRouter(deps Deps) chi.Router {
 		handler.NewPresetHandler(deps.Presets).Routes(r)
 		handler.NewCredentialHandler(deps.Credentials).Routes(r)
 		handler.NewProviderHandler(deps.LLMRegistry).Routes(r)
+		handler.NewLLMHandler(deps.OllamaURL).Routes(r)
 		handler.NewTemplateHandler().Routes(r)
 		handler.NewStreamHandler(deps.EventBus).Routes(r)
 	})

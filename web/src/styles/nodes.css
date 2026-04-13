@@ -3,6 +3,11 @@
    All colors use CSS custom properties from global.css
    --------------------------------------------------------------------------- */
 
+/* Partitioned styles — populated by later lanes. @imports MUST be first. */
+@import './nodes-agent.css';
+@import './nodes-media.css';
+@import './nodes-states.css';
+
 /* Shared base ------------------------------------------------------------ */
 
 .clotho-node {

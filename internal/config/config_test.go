@@ -116,6 +116,79 @@ func TestLoad_CustomValues(t *testing.T) {
 	}
 }
 
+func TestValidate_NoAuthProdMarkers(t *testing.T) {
+	// Baseline: clear all markers for this test scope.
+	markers := []string{"NODE_ENV", "KUBERNETES_SERVICE_HOST", "RAILWAY_ENVIRONMENT", "RENDER_SERVICE_ID", "VERCEL"}
+	for _, m := range markers {
+		orig, exists := os.LookupEnv(m)
+		os.Unsetenv(m)
+		if exists {
+			defer os.Setenv(m, orig)
+		}
+	}
+
+	tests := []struct {
+		name    string
+		envKey  string
+		envVal  string
+		wantErr bool
+	}{
+		{name: "no prod markers passes", envKey: "", envVal: "", wantErr: false},
+		{name: "NODE_ENV=production rejects", envKey: "NODE_ENV", envVal: "production", wantErr: true},
+		{name: "NODE_ENV=PRODUCTION rejects (case-insensitive)", envKey: "NODE_ENV", envVal: "PRODUCTION", wantErr: true},
+		{name: "NODE_ENV=development passes", envKey: "NODE_ENV", envVal: "development", wantErr: false},
+		{name: "KUBERNETES_SERVICE_HOST rejects", envKey: "KUBERNETES_SERVICE_HOST", envVal: "10.0.0.1", wantErr: true},
+		{name: "RAILWAY_ENVIRONMENT rejects", envKey: "RAILWAY_ENVIRONMENT", envVal: "production", wantErr: true},
+		{name: "RENDER_SERVICE_ID rejects", envKey: "RENDER_SERVICE_ID", envVal: "srv-abc", wantErr: true},
+		{name: "VERCEL rejects", envKey: "VERCEL", envVal: "1", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.envKey != "" {
+				os.Setenv(tt.envKey, tt.envVal)
+				defer os.Unsetenv(tt.envKey)
+			}
+
+			cfg := &Config{NoAuth: true, AcknowledgeNoAuth: true}
+			err := cfg.Validate()
+			if tt.wantErr && err == nil {
+				t.Fatalf("expected error, got nil")
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestValidate_NoAuthRequiresAcknowledge(t *testing.T) {
+	markers := []string{"NODE_ENV", "KUBERNETES_SERVICE_HOST", "RAILWAY_ENVIRONMENT", "RENDER_SERVICE_ID", "VERCEL"}
+	for _, m := range markers {
+		orig, exists := os.LookupEnv(m)
+		os.Unsetenv(m)
+		if exists {
+			defer os.Setenv(m, orig)
+		}
+	}
+
+	cfg := &Config{NoAuth: true, AcknowledgeNoAuth: false}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected error when NoAuth=true but AcknowledgeNoAuth=false, got nil")
+	}
+}
+
+func TestValidate_NoAuthDisabled(t *testing.T) {
+	// When NoAuth=false, prod markers must not cause errors.
+	os.Setenv("NODE_ENV", "production")
+	defer os.Unsetenv("NODE_ENV")
+
+	cfg := &Config{NoAuth: false}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("unexpected error with NoAuth=false: %v", err)
+	}
+}
+
 func TestLoad_ValidModes(t *testing.T) {
 	validModes := []string{"server", "worker", "all", "SERVER", "Worker", "ALL"}
 

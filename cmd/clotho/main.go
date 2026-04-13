@@ -132,8 +132,11 @@ func main() {
 		LLMRegistry:      llmRegistry,
 		Queue:            q,
 		EventBus:         eventBus,
-		JWTSecret:        cfg.JWTSecret,
-		JWTExpiry:        cfg.JWTExpiry,
+		JWTSecret:         cfg.JWTSecret,
+		JWTExpiry:         cfg.JWTExpiry,
+		OllamaURL:         cfg.OllamaURL,
+		NoAuth:            cfg.NoAuth,
+		AcknowledgeNoAuth: cfg.AcknowledgeNoAuth,
 	}
 
 	switch cfg.Mode {

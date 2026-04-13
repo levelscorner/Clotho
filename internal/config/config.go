@@ -24,6 +24,46 @@ type Config struct {
 	JWTExpiry     time.Duration // JWT access token expiry
 	MasterKey     string        // hex-encoded 32-byte envelope encryption master key
 	AdminPassword string        // admin user password (from ADMIN_PASSWORD env var)
+
+	// NoAuth enables local-dev authentication bypass when true.
+	// Requires AcknowledgeNoAuth to also be true (fail-closed).
+	NoAuth            bool
+	AcknowledgeNoAuth bool
+}
+
+// prodMarkers are environment variables whose presence indicates a
+// production-like deployment. If any are set while NoAuth=true, Validate
+// returns an error.
+var prodMarkers = []string{
+	"KUBERNETES_SERVICE_HOST",
+	"RAILWAY_ENVIRONMENT",
+	"RENDER_SERVICE_ID",
+	"VERCEL",
+}
+
+// Validate performs cross-field checks that cannot be expressed by Load.
+// In particular, it ensures NoAuth cannot accidentally be enabled in a
+// production environment.
+func (c *Config) Validate() error {
+	if !c.NoAuth {
+		return nil
+	}
+
+	if !c.AcknowledgeNoAuth {
+		return fmt.Errorf("NO_AUTH=true requires CLOTHO_ACKNOWLEDGE_NO_AUTH=true to explicitly acknowledge unauthenticated mode")
+	}
+
+	if strings.EqualFold(os.Getenv("NODE_ENV"), "production") {
+		return fmt.Errorf("NO_AUTH=true is forbidden when NODE_ENV=production")
+	}
+
+	for _, key := range prodMarkers {
+		if os.Getenv(key) != "" {
+			return fmt.Errorf("NO_AUTH=true is forbidden when %s is set", key)
+		}
+	}
+
+	return nil
 }
 
 func Load() (*Config, error) {
@@ -60,6 +100,18 @@ func Load() (*Config, error) {
 
 	// Admin password
 	cfg.AdminPassword = getEnv("ADMIN_PASSWORD", "clotho123")
+
+	// Auth bypass (local-dev only; fail-closed via Validate)
+	cfg.NoAuth = strings.EqualFold(getEnv("NO_AUTH", ""), "true")
+	cfg.AcknowledgeNoAuth = strings.EqualFold(getEnv("CLOTHO_ACKNOWLEDGE_NO_AUTH", ""), "true")
+
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+
+	if cfg.NoAuth {
+		slog.Warn("UNAUTHENTICATED MODE ENABLED — do not use with real data (NO_AUTH=true)")
+	}
 
 	return cfg, nil
 }

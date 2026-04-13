@@ -81,6 +81,14 @@ export interface AgentNodeConfig {
   max_tokens: number;
   cost_cap?: number;
   credential_id?: string;
+  /**
+   * Dispatch key for specialized AgentNode rendering. Populated when the node
+   * is created from a built-in preset; absent for generic agents.
+   *   - 'script'  → Script Writer / Story Writer personalities
+   *   - 'crafter' → "* Prompt Crafter" personalities
+   *   - undefined → generic AgentNode
+   */
+  preset_category?: 'script' | 'crafter' | string;
 }
 
 export interface ToolNodeConfig {

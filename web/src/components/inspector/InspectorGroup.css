@@ -1,0 +1,83 @@
+/* ---------------------------------------------------------------------------
+   InspectorGroup — collapsible section for the node inspector.
+   Uses native <details>/<summary> for free a11y (keyboard + screen readers).
+   --------------------------------------------------------------------------- */
+
+.clotho-inspector-group {
+  border-bottom: 1px solid var(--surface-border);
+}
+
+.clotho-inspector-group:last-child {
+  border-bottom: none;
+}
+
+.clotho-inspector-group__summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-lg);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  user-select: none;
+  transition: color var(--duration-fast) var(--ease-out);
+}
+
+.clotho-inspector-group__summary::-webkit-details-marker {
+  display: none;
+}
+
+.clotho-inspector-group__summary:hover {
+  color: var(--text-primary);
+}
+
+.clotho-inspector-group__summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.clotho-inspector-group__chevron {
+  display: inline-flex;
+  width: 10px;
+  height: 10px;
+  align-items: center;
+  justify-content: center;
+  transition: transform var(--duration-normal) var(--ease-out);
+  flex-shrink: 0;
+}
+
+.clotho-inspector-group[open] > .clotho-inspector-group__summary .clotho-inspector-group__chevron {
+  transform: rotate(90deg);
+}
+
+.clotho-inspector-group__title {
+  flex: 1;
+}
+
+/* Content — grid-template-rows animatable collapse */
+.clotho-inspector-group__content {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--duration-normal) var(--ease-out);
+}
+
+.clotho-inspector-group__content-inner {
+  overflow: hidden;
+  padding: 0 var(--space-lg) var(--space-md);
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .clotho-inspector-group__chevron,
+  .clotho-inspector-group__content,
+  .clotho-inspector-group__summary {
+    transition: none;
+  }
+}

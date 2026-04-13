@@ -56,7 +56,24 @@
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --duration-fast:   120ms;
   --duration-normal: 200ms;
+
+  /* Z-INDEX SCALE
+     Single source of truth for stacking. Don't hand-roll z-index values
+     in component styles — use these tokens (or the utility classes below). */
+  --z-canvas:        0;
+  --z-node-selected: 10;
+  --z-overlay:       100;
+  --z-modal:         200;
+  --z-banner:        300;
 }
+
+/* Z-index utility classes — use when inline styles are required
+   (since z-index cannot be set via CSS custom property in inline style). */
+.clotho-z-canvas        { z-index: var(--z-canvas); }
+.clotho-z-node-selected { z-index: var(--z-node-selected); }
+.clotho-z-overlay       { z-index: var(--z-overlay); }
+.clotho-z-modal         { z-index: var(--z-modal); }
+.clotho-z-banner        { z-index: var(--z-banner); }
 
 /* Reset */
 *,
@@ -108,3 +125,8 @@ button {
 }
 
 /* Fonts loaded via <link> tags in index.html for optimal loading */
+
+/* Layout + responsive rules */
+@import './../components/layout/AppShell.css';
+@import './responsive.css';
+

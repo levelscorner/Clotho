@@ -1,0 +1,843 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Clotho · Canvas States Shotgun</title>
+<style>
+  :root {
+    --surface-base: #121216;
+    --surface-raised: #1a1a20;
+    --surface-overlay: #222228;
+    --surface-hover: #2a2a32;
+    --surface-border: #2e2e38;
+    --text-primary: #ececf0;
+    --text-secondary: #8888a0;
+    --text-muted: #55556a;
+    --accent: #e5a84b;
+    --accent-soft: rgba(229, 168, 75, 0.12);
+    --accent-glow: rgba(229, 168, 75, 0.35);
+    --status-running: #e5a84b;
+    --status-complete: #4ade80;
+    --status-failed: #f87171;
+    --port-text: #a78bfa;
+    --port-image: #f59e0b;
+    --port-video: #ef4444;
+    --port-audio: #06b6d4;
+  }
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: #0a0a0d;
+    color: var(--text-primary);
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 13px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 48px 32px;
+  }
+  .page-title {
+    font-family: 'Sora', sans-serif;
+    font-size: 24px;
+    font-weight: 700;
+    margin: 0 0 8px;
+    letter-spacing: -0.3px;
+  }
+  .page-sub {
+    color: var(--text-secondary);
+    margin: 0 0 48px;
+    font-size: 13px;
+  }
+  .state-block { margin-bottom: 64px; }
+  .state-heading {
+    font-family: 'Sora', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin: 0 0 6px;
+  }
+  .state-title {
+    font-family: 'Sora', sans-serif;
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0 0 4px;
+    color: var(--text-primary);
+  }
+  .state-question {
+    color: var(--text-secondary);
+    font-size: 13px;
+    margin: 0 0 24px;
+    max-width: 640px;
+  }
+  .variants {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  .variant {
+    display: flex;
+    flex-direction: column;
+  }
+  .variant-label {
+    font-family: 'Sora', sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 6px;
+    padding: 3px 8px;
+    background: var(--accent-soft);
+    border-radius: 999px;
+    align-self: flex-start;
+  }
+  .variant-title {
+    font-family: 'Sora', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    margin: 0 0 4px;
+  }
+  .variant-desc {
+    color: var(--text-secondary);
+    font-size: 12px;
+    margin: 0 0 12px;
+    line-height: 1.4;
+  }
+
+  /* =========================
+     Canvas mini-mockup
+     ========================= */
+  .canvas-mini {
+    position: relative;
+    background: var(--surface-base);
+    border: 1px solid var(--surface-border);
+    border-radius: 10px;
+    overflow: hidden;
+    height: 380px;
+    display: flex;
+    flex-direction: column;
+  }
+  .c-banner {
+    height: 24px;
+    background: var(--status-failed);
+    color: white;
+    font-family: 'Inter', sans-serif;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .c-topbar {
+    height: 32px;
+    background: var(--surface-overlay);
+    border-bottom: 1px solid var(--surface-border);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  .c-logo {
+    font-family: 'Sora', sans-serif;
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: -0.3px;
+  }
+  .c-topbar-btn {
+    font-size: 10px;
+    color: var(--text-secondary);
+    padding: 3px 8px;
+    background: var(--surface-raised);
+    border-radius: 4px;
+    border: 1px solid var(--surface-border);
+    margin-left: auto;
+  }
+  .c-body {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+  }
+  .c-sidebar {
+    width: 54px;
+    background: var(--surface-raised);
+    border-right: 1px solid var(--surface-border);
+    padding: 8px 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .c-tile {
+    aspect-ratio: 1;
+    background: var(--surface-overlay);
+    border-radius: 6px;
+    display: grid;
+    place-items: center;
+    font-size: 14px;
+    color: var(--text-secondary);
+    cursor: default;
+  }
+  .c-tile.active { background: var(--accent-soft); color: var(--accent); }
+  .c-canvas {
+    flex: 1;
+    position: relative;
+    background:
+      radial-gradient(circle at 1px 1px, rgba(255,255,255,0.04) 1px, transparent 0) 0 0/18px 18px,
+      var(--surface-base);
+    overflow: hidden;
+  }
+  .c-inspector {
+    width: 78px;
+    background: var(--surface-raised);
+    border-left: 1px solid var(--surface-border);
+    padding: 8px;
+    flex-shrink: 0;
+  }
+  .c-ins-label {
+    font-size: 8px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+  .c-ins-row {
+    background: var(--surface-overlay);
+    height: 14px;
+    border-radius: 3px;
+    margin-bottom: 4px;
+  }
+
+  /* =========================
+     Mini node
+     ========================= */
+  .mnode {
+    position: absolute;
+    width: 120px;
+    background: var(--surface-raised);
+    border: 1px solid var(--surface-border);
+    border-radius: 7px;
+    overflow: hidden;
+    font-size: 9px;
+  }
+  .mnode-header {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 6px;
+    border-bottom: 1px solid var(--surface-border);
+  }
+  .mnode-icon { font-size: 9px; }
+  .mnode-title {
+    flex: 1;
+    font-weight: 600;
+    font-size: 9px;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .mnode-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+  }
+  .mnode-dot.queued { background: var(--text-muted); }
+  .mnode-dot.running { background: var(--status-running); box-shadow: 0 0 4px var(--accent-glow); }
+  .mnode-dot.complete { background: var(--status-complete); }
+  .mnode-dot.failed { background: var(--status-failed); }
+  .mnode-body {
+    padding: 6px;
+    height: 40px;
+    background: var(--surface-raised);
+    font-size: 8px;
+    color: var(--text-secondary);
+    font-family: 'JetBrains Mono', monospace;
+    overflow: hidden;
+  }
+  .mnode-body.script { font-family: Georgia, serif; font-style: italic; }
+  .mnode-body.matte {
+    background:
+      linear-gradient(135deg, rgba(245,158,11,0.12), rgba(229,168,75,0.04)),
+      var(--surface-overlay);
+    border: 3px solid #0d0d11;
+    border-radius: 2px;
+    margin: 3px;
+    height: 34px;
+    padding: 0;
+  }
+  .mnode-body.reel {
+    background: #08080a;
+    padding: 4px 3px;
+    height: 40px;
+  }
+  .mnode-body.reel::before, .mnode-body.reel::after {
+    content: '';
+    display: block;
+    height: 3px;
+    background: repeating-linear-gradient(90deg, transparent 0 3px, var(--surface-border) 3px 6px);
+  }
+  .mnode-frames { display: flex; gap: 2px; margin: 2px 0; height: 20px; }
+  .mnode-frames > div {
+    flex: 1;
+    background: linear-gradient(160deg, rgba(239,68,68,0.18), rgba(229,168,75,0.05));
+    border-radius: 1px;
+  }
+  .mnode-body.scope {
+    background: var(--surface-overlay);
+    padding: 0;
+    height: 40px;
+  }
+  .mnode-body.scope svg { width: 100%; height: 100%; display: block; }
+
+  /* Connector */
+  .conn {
+    position: absolute;
+    height: 1.5px;
+    background: currentColor;
+    opacity: 0.5;
+  }
+
+  /* =========================
+     STATE-SPECIFIC: Empty
+     ========================= */
+  .ghost { opacity: 0.18; pointer-events: none; }
+  .ghost.stronger { opacity: 0.28; }
+  .empty-cta-wrap {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: none;
+  }
+  .empty-cta {
+    background: var(--accent);
+    color: #1a1a20;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 1.2px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    box-shadow: 0 4px 16px var(--accent-glow);
+  }
+  .empty-hint {
+    color: var(--text-muted);
+    font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .empty-hint-corner {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    color: var(--text-muted);
+    font-size: 9px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* =========================
+     STATE-SPECIFIC: Error
+     ========================= */
+  .mnode.failed-inline .mnode-header {
+    border-top: 1px solid var(--status-failed);
+    border-left: 1px solid var(--status-failed);
+    border-right: 1px solid var(--status-failed);
+  }
+  .mnode.failed-inline .mnode-body {
+    background: rgba(248, 113, 113, 0.06);
+    color: var(--status-failed);
+    font-size: 7.5px;
+    line-height: 1.3;
+    font-family: 'Inter', sans-serif;
+  }
+  .retry-pill {
+    display: inline-block;
+    margin-top: 3px;
+    padding: 2px 6px;
+    background: var(--status-failed);
+    color: white;
+    font-size: 7px;
+    font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.8px;
+    border-radius: 3px;
+  }
+  .mnode.failed-stripe .mnode-header {
+    background: var(--status-failed);
+    color: white;
+  }
+  .mnode.failed-stripe .mnode-title { color: white; }
+  .mnode.failed-stripe .mnode-body {
+    background: var(--surface-raised);
+    color: var(--status-failed);
+    font-size: 7.5px;
+    line-height: 1.3;
+    font-family: 'Inter', sans-serif;
+  }
+  .mnode.blocked-hint {
+    opacity: 0.55;
+    border-color: rgba(248, 113, 113, 0.3);
+  }
+
+  /* =========================
+     STATE-SPECIFIC: Completion
+     ========================= */
+  .mnode.complete-subtle {
+    border-color: rgba(74, 222, 128, 0.25);
+  }
+  .mnode.complete-glow {
+    border-color: var(--accent);
+    box-shadow: 0 0 8px var(--accent-glow);
+  }
+  .cascade-pulse {
+    position: absolute;
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--accent-glow), transparent 70%);
+    pointer-events: none;
+  }
+  .toast {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    background: var(--surface-overlay);
+    border: 1px solid var(--surface-border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 9px;
+  }
+  .toast.minimal {
+    width: 180px;
+  }
+  .toast.stats {
+    width: 220px;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 8px 10px 6px;
+  }
+  .toast-text {
+    flex: 1;
+    color: var(--text-primary);
+  }
+  .toast-stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 4px;
+    margin-bottom: 6px;
+  }
+  .toast-stat-label {
+    font-size: 7px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+  }
+  .toast-stat-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--accent);
+  }
+  .toast-cta {
+    background: var(--accent);
+    color: #1a1a20;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    padding: 4px 8px;
+    border-radius: 4px;
+  }
+  .toast-cta.block {
+    text-align: center;
+    padding: 5px;
+  }
+
+  /* Positions for the 4-node pipeline used in error+completion canvases */
+  .pos-1 { top: 36%; left: 8%; }
+  .pos-2 { top: 36%; left: 33%; }
+  .pos-3 { top: 36%; left: 58%; }
+  .pos-4 { top: 36%; left: 83%; transform: translateX(-100%); }
+  .conn-1 { top: 46%; left: calc(8% + 120px); width: 28px; color: var(--port-text); }
+  .conn-2 { top: 46%; left: calc(33% + 120px); width: 28px; color: var(--port-image); }
+  .conn-3 { top: 46%; left: calc(58% + 120px); width: 28px; color: var(--port-video); }
+
+  /* Empty state positions — ghost cluster */
+  .ghost.g1 { top: 38%; left: 22%; }
+  .ghost.g2 { top: 38%; left: 42%; }
+  .ghost.g3 { top: 38%; left: 62%; }
+  .ghost-conn-1 { top: 46%; left: calc(22% + 120px); width: 28px; color: var(--port-text); opacity: 0.15; }
+  .ghost-conn-2 { top: 46%; left: calc(42% + 120px); width: 28px; color: var(--port-image); opacity: 0.15; }
+
+  .footnote {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 11px;
+    margin-top: 40px;
+    padding-top: 32px;
+    border-top: 1px solid var(--surface-border);
+    max-width: 700px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1 class="page-title">Clotho · Canvas state shotgun</h1>
+  <p class="page-sub">Three states of the same canvas surface. Two style variants each. Pick one per row, or mix.</p>
+
+  <!-- ===================== EMPTY STATE ===================== -->
+  <div class="state-block">
+    <div class="state-heading">State 1 · First load / zero nodes</div>
+    <h2 class="state-title">Empty canvas — what does the new user see?</h2>
+    <p class="state-question">User just bypassed auth and landed. Canvas is blank. How do they know what to do?</p>
+    <div class="variants">
+
+      <!-- VARIANT A: Whisper -->
+      <div class="variant">
+        <span class="variant-label">Variant 1A · Whisper</span>
+        <h3 class="variant-title">Ghosted pipeline, corner hint only</h3>
+        <p class="variant-desc">Three faint ghost nodes wired together at 18% opacity. No overlaid CTA. One small hint in bottom-left. Trust the metaphor.</p>
+        <div class="canvas-mini">
+          <div class="c-banner">UNAUTHENTICATED MODE — DO NOT USE WITH REAL DATA</div>
+          <div class="c-topbar">
+            <span class="c-logo">Clotho</span>
+            <div class="c-topbar-btn">+ New pipeline</div>
+          </div>
+          <div class="c-body">
+            <div class="c-sidebar">
+              <div class="c-tile">✎</div>
+              <div class="c-tile">◉</div>
+              <div class="c-tile">▶</div>
+              <div class="c-tile">∿</div>
+            </div>
+            <div class="c-canvas">
+              <!-- Ghost cluster -->
+              <div class="mnode ghost g1">
+                <div class="mnode-header"><div class="mnode-icon">✎</div><div class="mnode-title">Script Writer</div><div class="mnode-dot queued"></div></div>
+                <div class="mnode-body script">&ldquo;In the year of the…&rdquo;</div>
+              </div>
+              <div class="conn ghost-conn-1"></div>
+              <div class="mnode ghost g2">
+                <div class="mnode-header"><div class="mnode-icon">◉</div><div class="mnode-title">Image</div><div class="mnode-dot queued"></div></div>
+                <div class="mnode-body matte"></div>
+              </div>
+              <div class="conn ghost-conn-2"></div>
+              <div class="mnode ghost g3">
+                <div class="mnode-header"><div class="mnode-icon">▶</div><div class="mnode-title">Video</div><div class="mnode-dot queued"></div></div>
+                <div class="mnode-body reel"><div class="mnode-frames"><div></div><div></div><div></div></div></div>
+              </div>
+              <div class="empty-hint-corner">drag a node from the left to begin</div>
+            </div>
+            <div class="c-inspector">
+              <div class="c-ins-label">Inspector</div>
+              <div class="c-ins-row"></div>
+              <div class="c-ins-row" style="opacity:0.5"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- VARIANT B: Guide -->
+      <div class="variant">
+        <span class="variant-label">Variant 1B · Guide</span>
+        <h3 class="variant-title">Ghosted pipeline, central CTA, named nodes</h3>
+        <p class="variant-desc">Slightly stronger ghosts (28%) with readable names. Amber pill button floats in the center: LOAD SAMPLE PIPELINE. Teaches the metaphor in 2 seconds.</p>
+        <div class="canvas-mini">
+          <div class="c-banner">UNAUTHENTICATED MODE — DO NOT USE WITH REAL DATA</div>
+          <div class="c-topbar">
+            <span class="c-logo">Clotho</span>
+            <div class="c-topbar-btn">+ New pipeline</div>
+          </div>
+          <div class="c-body">
+            <div class="c-sidebar">
+              <div class="c-tile">✎</div>
+              <div class="c-tile">◉</div>
+              <div class="c-tile">▶</div>
+              <div class="c-tile">∿</div>
+            </div>
+            <div class="c-canvas">
+              <!-- Ghost cluster, stronger -->
+              <div class="mnode ghost stronger g1">
+                <div class="mnode-header"><div class="mnode-icon">✎</div><div class="mnode-title">Script Writer</div><div class="mnode-dot queued"></div></div>
+                <div class="mnode-body script">&ldquo;In the year of the…&rdquo;</div>
+              </div>
+              <div class="conn ghost-conn-1" style="opacity:0.25"></div>
+              <div class="mnode ghost stronger g2">
+                <div class="mnode-header"><div class="mnode-icon">◉</div><div class="mnode-title">Image</div><div class="mnode-dot queued"></div></div>
+                <div class="mnode-body matte"></div>
+              </div>
+              <div class="conn ghost-conn-2" style="opacity:0.25"></div>
+              <div class="mnode ghost stronger g3">
+                <div class="mnode-header"><div class="mnode-icon">▶</div><div class="mnode-title">Video</div><div class="mnode-dot queued"></div></div>
+                <div class="mnode-body reel"><div class="mnode-frames"><div></div><div></div><div></div></div></div>
+              </div>
+              <div class="empty-cta-wrap">
+                <div class="empty-cta">LOAD SAMPLE PIPELINE</div>
+                <div class="empty-hint">or drag your own node from the left</div>
+              </div>
+            </div>
+            <div class="c-inspector">
+              <div class="c-ins-label">Inspector</div>
+              <div class="c-ins-row"></div>
+              <div class="c-ins-row" style="opacity:0.5"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ===================== ERROR STATE ===================== -->
+  <div class="state-block">
+    <div class="state-heading">State 2 · Mid-pipeline, one node failed</div>
+    <h2 class="state-title">Error state — which node broke and what do I do about it?</h2>
+    <p class="state-question">Script completed, Image failed (rate limit). Video + Audio should show as blocked. How do we flag the failure?</p>
+    <div class="variants">
+
+      <!-- VARIANT A: Inline compact -->
+      <div class="variant">
+        <span class="variant-label">Variant 2A · Inline compact</span>
+        <h3 class="variant-title">Red 1px outline + body swaps to error message + tiny RETRY pill</h3>
+        <p class="variant-desc">Failed node gets a thin red outline on header only. Body area (the matte frame) is replaced with compact 2-line error message + small RETRY pill. Downstream nodes stay queued, look normal.</p>
+        <div class="canvas-mini">
+          <div class="c-banner">UNAUTHENTICATED MODE — DO NOT USE WITH REAL DATA</div>
+          <div class="c-topbar">
+            <span class="c-logo">Clotho</span>
+            <div class="c-topbar-btn">Run</div>
+          </div>
+          <div class="c-body">
+            <div class="c-sidebar">
+              <div class="c-tile">✎</div>
+              <div class="c-tile active">◉</div>
+              <div class="c-tile">▶</div>
+              <div class="c-tile">∿</div>
+            </div>
+            <div class="c-canvas">
+              <div class="mnode pos-1">
+                <div class="mnode-header"><div class="mnode-icon">✎</div><div class="mnode-title">Script</div><div class="mnode-dot complete"></div></div>
+                <div class="mnode-body script">&ldquo;In the year of the great drought…&rdquo;</div>
+              </div>
+              <div class="conn conn-1"></div>
+              <div class="mnode pos-2 failed-inline">
+                <div class="mnode-header"><div class="mnode-icon">◉</div><div class="mnode-title">Image · Scene 01</div><div class="mnode-dot failed"></div></div>
+                <div class="mnode-body">Rate limit exceeded<br>Try again in 30s<br><span class="retry-pill">RETRY</span></div>
+              </div>
+              <div class="conn conn-2"></div>
+              <div class="mnode pos-3">
+                <div class="mnode-header"><div class="mnode-icon">▶</div><div class="mnode-title">Video</div><div class="mnode-dot queued"></div></div>
+                <div class="mnode-body reel"><div class="mnode-frames"><div></div><div></div><div></div></div></div>
+              </div>
+              <div class="conn conn-3"></div>
+              <div class="mnode pos-4">
+                <div class="mnode-header"><div class="mnode-icon">∿</div><div class="mnode-title">Audio</div><div class="mnode-dot queued"></div></div>
+                <div class="mnode-body scope"><svg viewBox="0 0 100 40" preserveAspectRatio="none"><line x1="0" y1="20" x2="100" y2="20" stroke="#06b6d4" stroke-width="1" opacity="0.4"/></svg></div>
+              </div>
+            </div>
+            <div class="c-inspector">
+              <div class="c-ins-label">Inspector</div>
+              <div class="c-ins-row"></div>
+              <div class="c-ins-row" style="opacity:0.5"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- VARIANT B: Header stripe -->
+      <div class="variant">
+        <span class="variant-label">Variant 2B · Header stripe</span>
+        <h3 class="variant-title">Full-width red header strip + downstream &ldquo;blocked&rdquo; dim</h3>
+        <p class="variant-desc">Failed node's header becomes solid red (replaces title bar), error text in normal body, RETRY below. Downstream nodes go 55% opacity + red-tinged border as "blocked." Loud failure visible across the canvas.</p>
+        <div class="canvas-mini">
+          <div class="c-banner">UNAUTHENTICATED MODE — DO NOT USE WITH REAL DATA</div>
+          <div class="c-topbar">
+            <span class="c-logo">Clotho</span>
+            <div class="c-topbar-btn">Run</div>
+          </div>
+          <div class="c-body">
+            <div class="c-sidebar">
+              <div class="c-tile">✎</div>
+              <div class="c-tile active">◉</div>
+              <div class="c-tile">▶</div>
+              <div class="c-tile">∿</div>
+            </div>
+            <div class="c-canvas">
+              <div class="mnode pos-1">
+                <div class="mnode-header"><div class="mnode-icon">✎</div><div class="mnode-title">Script</div><div class="mnode-dot complete"></div></div>
+                <div class="mnode-body script">&ldquo;In the year of the great drought…&rdquo;</div>
+              </div>
+              <div class="conn conn-1"></div>
+              <div class="mnode pos-2 failed-stripe">
+                <div class="mnode-header"><div class="mnode-icon">◉</div><div class="mnode-title">FAILED · Rate limit</div><div class="mnode-dot failed"></div></div>
+                <div class="mnode-body">Model refused: rate limit exceeded.<br>Try again in 30s.<br><span class="retry-pill">RETRY STEP</span></div>
+              </div>
+              <div class="conn conn-2" style="opacity:0.25"></div>
+              <div class="mnode pos-3 blocked-hint">
+                <div class="mnode-header"><div class="mnode-icon">▶</div><div class="mnode-title">Video · blocked</div><div class="mnode-dot queued"></div></div>
+                <div class="mnode-body reel"><div class="mnode-frames"><div></div><div></div><div></div></div></div>
+              </div>
+              <div class="conn conn-3" style="opacity:0.25"></div>
+              <div class="mnode pos-4 blocked-hint">
+                <div class="mnode-header"><div class="mnode-icon">∿</div><div class="mnode-title">Audio · blocked</div><div class="mnode-dot queued"></div></div>
+                <div class="mnode-body scope"><svg viewBox="0 0 100 40" preserveAspectRatio="none"><line x1="0" y1="20" x2="100" y2="20" stroke="#06b6d4" stroke-width="1" opacity="0.4"/></svg></div>
+              </div>
+            </div>
+            <div class="c-inspector">
+              <div class="c-ins-label">Inspector</div>
+              <div class="c-ins-row"></div>
+              <div class="c-ins-row" style="opacity:0.5"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ===================== COMPLETION STATE ===================== -->
+  <div class="state-block">
+    <div class="state-heading">State 3 · Pipeline complete</div>
+    <h2 class="state-title">Completion moment — did anything happen?</h2>
+    <p class="state-question">All 4 nodes succeeded. How do we celebrate without being loud? What's the next-action prompt?</p>
+    <div class="variants">
+
+      <!-- VARIANT A: Understated -->
+      <div class="variant">
+        <span class="variant-label">Variant 3A · Understated</span>
+        <h3 class="variant-title">Subtle green tint borders + 180px corner toast</h3>
+        <p class="variant-desc">Every node's border goes green-tinted. Small toast in bottom-right with duration·cost, single VIEW button. No animation. For someone running this 30× a day who wants signal not celebration.</p>
+        <div class="canvas-mini">
+          <div class="c-banner">UNAUTHENTICATED MODE — DO NOT USE WITH REAL DATA</div>
+          <div class="c-topbar">
+            <span class="c-logo">Clotho</span>
+            <div class="c-topbar-btn">Run</div>
+          </div>
+          <div class="c-body">
+            <div class="c-sidebar">
+              <div class="c-tile">✎</div>
+              <div class="c-tile">◉</div>
+              <div class="c-tile">▶</div>
+              <div class="c-tile">∿</div>
+            </div>
+            <div class="c-canvas">
+              <div class="mnode pos-1 complete-subtle">
+                <div class="mnode-header"><div class="mnode-icon">✎</div><div class="mnode-title">Script</div><div class="mnode-dot complete"></div></div>
+                <div class="mnode-body script">&ldquo;In the year of the great drought…&rdquo;</div>
+              </div>
+              <div class="conn conn-1" style="color: var(--status-complete); opacity: 0.4"></div>
+              <div class="mnode pos-2 complete-subtle">
+                <div class="mnode-header"><div class="mnode-icon">◉</div><div class="mnode-title">Image</div><div class="mnode-dot complete"></div></div>
+                <div class="mnode-body matte"></div>
+              </div>
+              <div class="conn conn-2" style="color: var(--status-complete); opacity: 0.4"></div>
+              <div class="mnode pos-3 complete-subtle">
+                <div class="mnode-header"><div class="mnode-icon">▶</div><div class="mnode-title">Video</div><div class="mnode-dot complete"></div></div>
+                <div class="mnode-body reel"><div class="mnode-frames"><div></div><div></div><div></div></div></div>
+              </div>
+              <div class="conn conn-3" style="color: var(--status-complete); opacity: 0.4"></div>
+              <div class="mnode pos-4 complete-subtle">
+                <div class="mnode-header"><div class="mnode-icon">∿</div><div class="mnode-title">Audio</div><div class="mnode-dot complete"></div></div>
+                <div class="mnode-body scope"><svg viewBox="0 0 100 40" preserveAspectRatio="none"><path d="M0 20 Q 12 10 25 20 T 50 18 T 75 22 T 100 20" stroke="#06b6d4" stroke-width="1.5" fill="none" opacity="0.85"/></svg></div>
+              </div>
+              <div class="toast minimal">
+                <div class="toast-text">Done · <span style="font-family:'JetBrains Mono',monospace;color:var(--accent)">12.4s · $0.23</span></div>
+                <div class="toast-cta">VIEW</div>
+              </div>
+            </div>
+            <div class="c-inspector">
+              <div class="c-ins-label">Inspector</div>
+              <div class="c-ins-row"></div>
+              <div class="c-ins-row" style="opacity:0.5"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- VARIANT B: Cascade -->
+      <div class="variant">
+        <span class="variant-label">Variant 3B · Cascade</span>
+        <h3 class="variant-title">Amber glow pulse mid-cascade + 220px stats toast with big CTA</h3>
+        <p class="variant-desc">Visible amber pulse overlay on node 2/4 (implied animation — cascades left-to-right over 1s). Larger toast with duration / cost / tokens as mono-grid + dedicated VIEW OUTPUT block CTA. Payoff moment that rewards craft.</p>
+        <div class="canvas-mini">
+          <div class="c-banner">UNAUTHENTICATED MODE — DO NOT USE WITH REAL DATA</div>
+          <div class="c-topbar">
+            <span class="c-logo">Clotho</span>
+            <div class="c-topbar-btn">Run</div>
+          </div>
+          <div class="c-body">
+            <div class="c-sidebar">
+              <div class="c-tile">✎</div>
+              <div class="c-tile">◉</div>
+              <div class="c-tile">▶</div>
+              <div class="c-tile">∿</div>
+            </div>
+            <div class="c-canvas">
+              <div class="mnode pos-1 complete-subtle">
+                <div class="mnode-header"><div class="mnode-icon">✎</div><div class="mnode-title">Script</div><div class="mnode-dot complete"></div></div>
+                <div class="mnode-body script">&ldquo;In the year of the great drought…&rdquo;</div>
+              </div>
+              <div class="conn conn-1" style="color: var(--accent); opacity: 0.6"></div>
+              <!-- Pulse overlay on node 2 -->
+              <div class="cascade-pulse" style="top: calc(36% + 30px); left: calc(33% + 60px); transform: translate(-50%, -50%);"></div>
+              <div class="mnode pos-2 complete-glow">
+                <div class="mnode-header"><div class="mnode-icon">◉</div><div class="mnode-title">Image</div><div class="mnode-dot complete"></div></div>
+                <div class="mnode-body matte"></div>
+              </div>
+              <div class="conn conn-2" style="color: var(--accent); opacity: 0.6"></div>
+              <div class="mnode pos-3 complete-subtle">
+                <div class="mnode-header"><div class="mnode-icon">▶</div><div class="mnode-title">Video</div><div class="mnode-dot complete"></div></div>
+                <div class="mnode-body reel"><div class="mnode-frames"><div></div><div></div><div></div></div></div>
+              </div>
+              <div class="conn conn-3" style="color: var(--accent); opacity: 0.3"></div>
+              <div class="mnode pos-4 complete-subtle">
+                <div class="mnode-header"><div class="mnode-icon">∿</div><div class="mnode-title">Audio</div><div class="mnode-dot complete"></div></div>
+                <div class="mnode-body scope"><svg viewBox="0 0 100 40" preserveAspectRatio="none"><path d="M0 20 Q 12 10 25 20 T 50 18 T 75 22 T 100 20" stroke="#06b6d4" stroke-width="1.5" fill="none" opacity="0.85"/></svg></div>
+              </div>
+              <div class="toast stats">
+                <div class="toast-stats-grid">
+                  <div>
+                    <div class="toast-stat-label">Time</div>
+                    <div class="toast-stat-value">12.4s</div>
+                  </div>
+                  <div>
+                    <div class="toast-stat-label">Cost</div>
+                    <div class="toast-stat-value">$0.23</div>
+                  </div>
+                  <div>
+                    <div class="toast-stat-label">Tokens</div>
+                    <div class="toast-stat-value">1.4k</div>
+                  </div>
+                </div>
+                <div class="toast-cta block">VIEW OUTPUT →</div>
+              </div>
+            </div>
+            <div class="c-inspector">
+              <div class="c-ins-label">Inspector</div>
+              <div class="c-ins-row"></div>
+              <div class="c-ins-row" style="opacity:0.5"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <p class="footnote">All variants use locked DESIGN.md tokens (warm amber, dark surfaces, port-type colors). Pick one per row, or mix — e.g., 1B + 2A + 3B is a valid answer.</p>
+</div>
+</body>
+</html>

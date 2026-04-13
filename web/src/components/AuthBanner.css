@@ -1,0 +1,48 @@
+/*
+ * AuthBanner — warm-amber design system.
+ * Fixed strip above everything. Color: status-failed (#f87171) from DESIGN.md.
+ * Uppercase Inter 600 12px with 1.4px letter-spacing for the caution feel.
+ */
+
+.auth-banner {
+  /* In normal flow as the first child of the app column. Takes a fixed
+   * 32px of vertical space above the top bar. Not fixed-positioned so the
+   * underlying app layout never has to guess an offset. */
+  flex: 0 0 32px;
+  height: 32px;
+  width: 100%;
+  z-index: 10000;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: #f87171;
+  color: #ffffff;
+
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1.4px;
+
+  user-select: none;
+}
+
+/* Wrapper that stacks the banner above AppContent. AppContent already fills
+ * 100vw x 100vh via inline styles, so we subtract 32px when the banner is
+ * present to prevent overflow. */
+.app-root--no-auth {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.app-root--no-auth > :nth-child(2) {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto !important;
+  width: 100% !important;
+}

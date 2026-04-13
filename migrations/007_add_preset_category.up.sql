@@ -1,0 +1,14 @@
+-- 007_add_preset_category.up.sql
+--
+-- Introduces the `preset_category` dispatch key used by the frontend to pick a
+-- specialized AgentNode visual style (e.g., "script" vs "crafter" vs generic).
+--
+-- NOTE: AgentNodeConfig is persisted as JSONB both inside agent_presets.config
+-- and inside node_instances.config, so no dedicated column is required. The
+-- field lives inside the existing JSON shape.
+--
+-- This migration is intentionally a no-op at the schema level; it exists as a
+-- documentation anchor so the sequence (007 schema marker, 008 data backfill)
+-- reads cleanly in history. Data backfill for built-in presets happens in
+-- migration 008.
+SELECT 1;

@@ -1,0 +1,740 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Clotho — Node Personality Mockup</title>
+<style>
+  :root {
+    --surface-base: #121216;
+    --surface-raised: #1a1a20;
+    --surface-overlay: #222228;
+    --surface-hover: #2a2a32;
+    --surface-border: #2e2e38;
+    --text-primary: #ececf0;
+    --text-secondary: #8888a0;
+    --text-muted: #55556a;
+    --accent: #e5a84b;
+    --accent-soft: rgba(229, 168, 75, 0.12);
+    --accent-glow: rgba(229, 168, 75, 0.35);
+    --status-running: #e5a84b;
+    --status-complete: #4ade80;
+    --status-failed: #f87171;
+    --port-text: #a78bfa;
+    --port-image: #f59e0b;
+    --port-video: #ef4444;
+    --port-audio: #06b6d4;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+  }
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--surface-base);
+    color: var(--text-primary);
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 13px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .stage {
+    min-height: 100vh;
+    background:
+      radial-gradient(circle at 1px 1px, rgba(255,255,255,0.04) 1px, transparent 0) 0 0/24px 24px,
+      var(--surface-base);
+    padding: 60px 40px;
+  }
+  .top-label {
+    font-family: 'Sora', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+  }
+  .top-title {
+    font-family: 'Sora', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 40px;
+    letter-spacing: -0.3px;
+  }
+  .variant-row {
+    margin-bottom: 80px;
+  }
+  .variant-tag {
+    display: inline-block;
+    padding: 4px 10px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .variant-title {
+    font-family: 'Sora', sans-serif;
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0 0 4px;
+  }
+  .variant-desc {
+    color: var(--text-secondary);
+    font-size: 12px;
+    margin: 0 0 24px;
+    max-width: 640px;
+  }
+  .pipeline {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    overflow-x: auto;
+    padding: 20px 0;
+    position: relative;
+  }
+  .connector {
+    width: 64px;
+    height: 2px;
+    flex-shrink: 0;
+    position: relative;
+    margin: 0 -1px;
+  }
+  .connector.text { background: linear-gradient(90deg, var(--port-text), var(--port-image)); opacity: 0.6; }
+  .connector.image { background: linear-gradient(90deg, var(--port-image), var(--port-video)); opacity: 0.6; }
+  .connector.video { background: linear-gradient(90deg, var(--port-video), var(--port-audio)); opacity: 0.6; }
+  .connector::after {
+    content: '';
+    position: absolute;
+    right: 0; top: -3px;
+    width: 0; height: 0;
+    border-left: 6px solid currentColor;
+    border-top: 4px solid transparent;
+    border-bottom: 4px solid transparent;
+    color: var(--text-muted);
+    opacity: 0.5;
+  }
+
+  /* ============ SHARED NODE BASICS ============ */
+  .node {
+    position: relative;
+    background: var(--surface-raised);
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-md);
+    width: 220px;
+    flex-shrink: 0;
+    overflow: hidden;
+    transition: transform 0.2s, border-color 0.2s;
+  }
+  .node.running {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent-glow), 0 8px 30px rgba(229, 168, 75, 0.15);
+  }
+  .node-header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--surface-border);
+    background: rgba(255,255,255,0.015);
+  }
+  .node-icon {
+    width: 28px; height: 28px;
+    border-radius: 7px;
+    display: grid; place-items: center;
+    flex-shrink: 0;
+    font-size: 14px;
+  }
+  .node-title-block { flex: 1; min-width: 0; }
+  .node-type {
+    font-size: 9px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-weight: 600;
+    line-height: 1;
+  }
+  .node-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1.3;
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .status-dot.complete { background: var(--status-complete); box-shadow: 0 0 6px rgba(74, 222, 128, 0.6); }
+  .status-dot.running { background: var(--status-running); box-shadow: 0 0 8px var(--accent-glow); animation: pulse 1.4s ease-in-out infinite; }
+  .status-dot.queued { background: var(--text-muted); }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.85); }
+  }
+  .node-footer {
+    display: flex; justify-content: space-between;
+    padding: 8px 12px;
+    border-top: 1px solid var(--surface-border);
+    background: rgba(0,0,0,0.2);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--text-secondary);
+  }
+  .port {
+    position: absolute;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    border: 2px solid var(--surface-base);
+    top: 22px;
+  }
+  .port.in { left: -6px; }
+  .port.out { right: -6px; }
+  .port.text { background: var(--port-text); }
+  .port.image { background: var(--port-image); }
+  .port.video { background: var(--port-video); }
+  .port.audio { background: var(--port-audio); }
+
+  /* ============ VARIANT A: ICONOGRAPHIC ============ */
+  /* Same shell. Different ICONS + ACCENT TINTS in header. Body shows type-appropriate content preview. */
+  .v-a .node-icon.script { background: rgba(167, 139, 250, 0.15); color: var(--port-text); }
+  .v-a .node-icon.image { background: rgba(245, 158, 11, 0.15); color: var(--port-image); }
+  .v-a .node-icon.video { background: rgba(239, 68, 68, 0.15); color: var(--port-video); }
+  .v-a .node-icon.audio { background: rgba(6, 182, 212, 0.15); color: var(--port-audio); }
+
+  .v-a .body { padding: 12px; }
+  .v-a .script-preview {
+    font-family: Georgia, serif;
+    font-size: 11px;
+    line-height: 1.55;
+    color: var(--text-secondary);
+    font-style: italic;
+  }
+  .v-a .script-preview span { color: var(--text-primary); font-style: normal; }
+  .v-a .image-well {
+    aspect-ratio: 16/10;
+    background:
+      linear-gradient(135deg, rgba(245,158,11,0.08), rgba(229,168,75,0.05)),
+      var(--surface-overlay);
+    border-radius: var(--radius-sm);
+    border: 1px dashed var(--surface-border);
+    display: grid; place-items: center;
+    color: var(--text-muted);
+    font-size: 18px;
+  }
+  .v-a .filmstrip {
+    display: flex; gap: 2px;
+    height: 50px;
+    background: var(--surface-overlay);
+    padding: 4px;
+    border-radius: var(--radius-sm);
+    position: relative;
+  }
+  .v-a .filmstrip::before, .v-a .filmstrip::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0;
+    height: 6px;
+    background-image: linear-gradient(90deg, var(--surface-border) 50%, transparent 50%);
+    background-size: 8px 6px;
+  }
+  .v-a .filmstrip::before { top: 0; }
+  .v-a .filmstrip::after { bottom: 0; }
+  .v-a .frame {
+    flex: 1;
+    background: linear-gradient(135deg, rgba(239,68,68,0.12), rgba(229,168,75,0.06));
+    border-radius: 2px;
+    margin: 6px 0;
+  }
+  .v-a .waveform {
+    height: 50px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 4px;
+    background: var(--surface-overlay);
+    border-radius: var(--radius-sm);
+  }
+  .v-a .bar {
+    width: 3px;
+    background: var(--port-audio);
+    border-radius: 2px;
+    opacity: 0.85;
+  }
+
+  /* ============ VARIANT B: MATERIAL METAPHOR ============ */
+  /* Each node uses a different visual MATERIAL to telegraph what it is — paper, frame, filmstrip, oscilloscope. Larger commitment. */
+  .v-b .node {
+    border: 1px solid var(--surface-border);
+  }
+  .v-b .node.script {
+    background:
+      repeating-linear-gradient(0deg, transparent 0, transparent 18px, rgba(255,255,255,0.025) 18px, rgba(255,255,255,0.025) 19px),
+      var(--surface-raised);
+  }
+  .v-b .node.script .node-header { background: rgba(167, 139, 250, 0.06); }
+  .v-b .node.script .node-icon { background: rgba(167, 139, 250, 0.2); color: var(--port-text); border-radius: 50%; }
+  .v-b .node.script .body {
+    padding: 14px 12px;
+    font-family: Georgia, serif;
+    font-size: 11px;
+    line-height: 1.65;
+    color: var(--text-secondary);
+  }
+
+  .v-b .node.image {
+    background: var(--surface-raised);
+  }
+  .v-b .node.image .node-header { background: rgba(245, 158, 11, 0.06); }
+  .v-b .node.image .node-icon { background: rgba(245, 158, 11, 0.2); color: var(--port-image); }
+  .v-b .node.image .body { padding: 8px; }
+  .v-b .node.image .matte {
+    aspect-ratio: 16/10;
+    background:
+      conic-gradient(from 45deg at 50% 50%, rgba(245,158,11,0.18), rgba(229,168,75,0.06), rgba(245,158,11,0.18));
+    border: 6px solid #0d0d11;
+    border-radius: 4px;
+    box-shadow: inset 0 0 0 1px var(--surface-border), 0 2px 8px rgba(0,0,0,0.4);
+    display: grid; place-items: center;
+  }
+  .v-b .node.image .matte::after {
+    content: 'IMG'; font-family: 'JetBrains Mono', monospace; font-size: 9px;
+    letter-spacing: 2px; color: rgba(0,0,0,0.6); font-weight: 600;
+  }
+
+  .v-b .node.video {
+    background: var(--surface-raised);
+  }
+  .v-b .node.video .node-header { background: rgba(239, 68, 68, 0.06); }
+  .v-b .node.video .node-icon { background: rgba(239, 68, 68, 0.2); color: var(--port-video); }
+  .v-b .node.video .body { padding: 0; }
+  .v-b .node.video .reel {
+    background: #08080a;
+    padding: 10px 6px;
+    position: relative;
+  }
+  .v-b .node.video .perf {
+    height: 8px;
+    background: repeating-linear-gradient(90deg, transparent 0 6px, var(--surface-border) 6px 12px);
+    border-radius: 2px;
+    margin: 4px 0;
+  }
+  .v-b .node.video .frames {
+    display: flex; gap: 3px;
+    padding: 4px 0;
+  }
+  .v-b .node.video .frames > div {
+    flex: 1; aspect-ratio: 4/3;
+    background: linear-gradient(160deg, rgba(239,68,68,0.18), rgba(229,168,75,0.05));
+    border-radius: 1px;
+  }
+
+  .v-b .node.audio {
+    background: var(--surface-raised);
+  }
+  .v-b .node.audio .node-header { background: rgba(6, 182, 212, 0.06); }
+  .v-b .node.audio .node-icon { background: rgba(6, 182, 212, 0.2); color: var(--port-audio); }
+  .v-b .node.audio .body { padding: 12px; }
+  .v-b .node.audio .scope {
+    height: 60px;
+    background:
+      linear-gradient(0deg, transparent 49%, rgba(6,182,212,0.2) 49.5%, rgba(6,182,212,0.2) 50.5%, transparent 51%),
+      var(--surface-overlay);
+    border-radius: var(--radius-sm);
+    position: relative;
+    overflow: hidden;
+  }
+  .v-b .node.audio .scope svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+  /* ============ VARIANT C: INSTRUMENT PANEL ============ */
+  /* Each node looks like a piece of pro creative gear. LED indicators, knob suggestions, pro audio/video aesthetic. */
+  .v-c .node {
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.02), transparent 30%),
+      var(--surface-raised);
+    border: 1px solid #1a1a1f;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.04),
+      0 1px 0 rgba(0,0,0,0.4);
+  }
+  .v-c .node-header {
+    background: linear-gradient(180deg, #16161a, #101014);
+    padding: 8px 12px;
+    border-bottom: 1px solid #050508;
+  }
+  .v-c .node-type {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8px;
+    letter-spacing: 1.5px;
+  }
+  .v-c .led {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    box-shadow: inset 0 0 2px rgba(0,0,0,0.6), 0 0 6px currentColor;
+  }
+  .v-c .led.script { background: var(--port-text); color: var(--port-text); }
+  .v-c .led.image { background: var(--port-image); color: var(--port-image); }
+  .v-c .led.video { background: var(--port-video); color: var(--port-video); }
+  .v-c .led.audio { background: var(--port-audio); color: var(--port-audio); }
+
+  .v-c .panel {
+    padding: 12px;
+    background:
+      radial-gradient(ellipse at 50% 0%, rgba(255,255,255,0.025), transparent 60%);
+  }
+
+  .v-c .lcd {
+    background: #0a0a0c;
+    border: 1px solid #050507;
+    border-radius: 4px;
+    padding: 8px 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--accent);
+    box-shadow: inset 0 1px 4px rgba(0,0,0,0.6);
+    line-height: 1.5;
+  }
+  .v-c .lcd.text { color: var(--port-text); }
+  .v-c .lcd.image { color: var(--port-image); }
+  .v-c .lcd.video { color: var(--port-video); }
+  .v-c .lcd.audio { color: var(--port-audio); }
+
+  .v-c .knobs {
+    display: flex; gap: 8px; margin-top: 10px;
+  }
+  .v-c .knob {
+    flex: 1; height: 22px;
+    background: linear-gradient(180deg, #1f1f25, #14141a);
+    border: 1px solid #050507;
+    border-radius: 4px;
+    position: relative;
+    overflow: hidden;
+  }
+  .v-c .knob::after {
+    content: '';
+    position: absolute;
+    left: 4px; right: 4px; top: 50%; height: 2px;
+    background: var(--surface-border);
+    border-radius: 2px;
+    transform: translateY(-1px);
+  }
+  .v-c .knob > span {
+    position: absolute; top: 50%; left: 0;
+    width: 30%; height: 2px;
+    background: var(--accent);
+    border-radius: 2px;
+    transform: translateY(-1px);
+    box-shadow: 0 0 4px var(--accent-glow);
+  }
+
+  .v-c .meter {
+    display: flex; gap: 2px;
+    height: 30px;
+    margin-top: 8px;
+    align-items: flex-end;
+  }
+  .v-c .meter > div {
+    flex: 1;
+    background: var(--port-audio);
+    opacity: 0.75;
+    border-radius: 1px;
+  }
+
+  .footnote {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 11px;
+    margin-top: 60px;
+    padding-top: 40px;
+    border-top: 1px solid var(--surface-border);
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="top-label">Clotho · Node Personality Exploration</div>
+  <h1 class="top-title">Three directions for differentiating agent nodes by type</h1>
+
+  <!-- ========================= VARIANT A ========================= -->
+  <div class="variant-row v-a">
+    <div class="variant-tag">Variant A · Iconographic</div>
+    <h2 class="variant-title">Same shell, type-coded body content</h2>
+    <p class="variant-desc">Nodes share identical geometry. Personality comes from icon, accent tint, and a body preview that hints at the medium (text snippet, image well, filmstrip, waveform). Lowest risk, ~2 days. Reversible.</p>
+    <div class="pipeline">
+      <!-- SCRIPT -->
+      <div class="node">
+        <div class="port in text"></div>
+        <div class="port out text"></div>
+        <div class="node-header">
+          <div class="node-icon script">✎</div>
+          <div class="node-title-block">
+            <div class="node-type">Script Writer</div>
+            <div class="node-name">Opening narration</div>
+          </div>
+          <div class="status-dot complete"></div>
+        </div>
+        <div class="body">
+          <p class="script-preview">"<span>In the year of the great drought</span>, the river spoke to her again..."</p>
+        </div>
+        <div class="node-footer"><span>$0.012</span><span>2.4s</span></div>
+      </div>
+      <div class="connector text"></div>
+      <!-- IMAGE -->
+      <div class="node running">
+        <div class="port in text"></div>
+        <div class="port out image"></div>
+        <div class="node-header">
+          <div class="node-icon image">◉</div>
+          <div class="node-title-block">
+            <div class="node-type">Image Generator</div>
+            <div class="node-name">Scene 01 · river dawn</div>
+          </div>
+          <div class="status-dot running"></div>
+        </div>
+        <div class="body"><div class="image-well">◌</div></div>
+        <div class="node-footer"><span>$0.040</span><span>generating…</span></div>
+      </div>
+      <div class="connector image"></div>
+      <!-- VIDEO -->
+      <div class="node">
+        <div class="port in image"></div>
+        <div class="port out video"></div>
+        <div class="node-header">
+          <div class="node-icon video">▶</div>
+          <div class="node-title-block">
+            <div class="node-type">Video Generator</div>
+            <div class="node-name">Animate · drift motion</div>
+          </div>
+          <div class="status-dot queued"></div>
+        </div>
+        <div class="body">
+          <div class="filmstrip">
+            <div class="frame"></div><div class="frame"></div><div class="frame"></div><div class="frame"></div>
+          </div>
+        </div>
+        <div class="node-footer"><span>$0.180</span><span>queued</span></div>
+      </div>
+      <div class="connector video"></div>
+      <!-- AUDIO -->
+      <div class="node">
+        <div class="port in text"></div>
+        <div class="port out audio"></div>
+        <div class="node-header">
+          <div class="node-icon audio">∿</div>
+          <div class="node-title-block">
+            <div class="node-type">Audio · Narration</div>
+            <div class="node-name">VO · warm female</div>
+          </div>
+          <div class="status-dot queued"></div>
+        </div>
+        <div class="body">
+          <div class="waveform">
+            <div class="bar" style="height:30%"></div>
+            <div class="bar" style="height:55%"></div>
+            <div class="bar" style="height:80%"></div>
+            <div class="bar" style="height:45%"></div>
+            <div class="bar" style="height:70%"></div>
+            <div class="bar" style="height:35%"></div>
+            <div class="bar" style="height:60%"></div>
+            <div class="bar" style="height:50%"></div>
+            <div class="bar" style="height:75%"></div>
+            <div class="bar" style="height:40%"></div>
+            <div class="bar" style="height:65%"></div>
+            <div class="bar" style="height:30%"></div>
+            <div class="bar" style="height:55%"></div>
+            <div class="bar" style="height:45%"></div>
+          </div>
+        </div>
+        <div class="node-footer"><span>$0.020</span><span>queued</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================= VARIANT B ========================= -->
+  <div class="variant-row v-b">
+    <div class="variant-tag">Variant B · Material metaphor</div>
+    <h2 class="variant-title">Each node IS the medium it produces</h2>
+    <p class="variant-desc">Script node has paper-rule lines + serif preview. Image node has a matte-board frame. Video node has perforated reel edges + frame strips. Audio node has an oscilloscope waveform. Higher commitment, ~3 days, but creates a workspace that feels like a studio.</p>
+    <div class="pipeline">
+      <!-- SCRIPT -->
+      <div class="node script">
+        <div class="port in text"></div>
+        <div class="port out text"></div>
+        <div class="node-header">
+          <div class="node-icon">A</div>
+          <div class="node-title-block">
+            <div class="node-type">Script · Manuscript</div>
+            <div class="node-name">Opening narration</div>
+          </div>
+          <div class="status-dot complete"></div>
+        </div>
+        <div class="body">
+          <p>"In the year of the great drought, the river spoke to her again..."</p>
+        </div>
+        <div class="node-footer"><span>$0.012</span><span>2.4s</span></div>
+      </div>
+      <div class="connector text"></div>
+      <!-- IMAGE -->
+      <div class="node image running">
+        <div class="port in text"></div>
+        <div class="port out image"></div>
+        <div class="node-header">
+          <div class="node-icon">◇</div>
+          <div class="node-title-block">
+            <div class="node-type">Image · Plate</div>
+            <div class="node-name">Scene 01 · river dawn</div>
+          </div>
+          <div class="status-dot running"></div>
+        </div>
+        <div class="body"><div class="matte"></div></div>
+        <div class="node-footer"><span>$0.040</span><span>generating…</span></div>
+      </div>
+      <div class="connector image"></div>
+      <!-- VIDEO -->
+      <div class="node video">
+        <div class="port in image"></div>
+        <div class="port out video"></div>
+        <div class="node-header">
+          <div class="node-icon">▤</div>
+          <div class="node-title-block">
+            <div class="node-type">Video · Reel</div>
+            <div class="node-name">Drift motion · 4s</div>
+          </div>
+          <div class="status-dot queued"></div>
+        </div>
+        <div class="body">
+          <div class="reel">
+            <div class="perf"></div>
+            <div class="frames"><div></div><div></div><div></div><div></div></div>
+            <div class="perf"></div>
+          </div>
+        </div>
+        <div class="node-footer"><span>$0.180</span><span>queued</span></div>
+      </div>
+      <div class="connector video"></div>
+      <!-- AUDIO -->
+      <div class="node audio">
+        <div class="port in text"></div>
+        <div class="port out audio"></div>
+        <div class="node-header">
+          <div class="node-icon">∿</div>
+          <div class="node-title-block">
+            <div class="node-type">Audio · Scope</div>
+            <div class="node-name">VO · warm female</div>
+          </div>
+          <div class="status-dot queued"></div>
+        </div>
+        <div class="body">
+          <div class="scope">
+            <svg viewBox="0 0 200 60" preserveAspectRatio="none">
+              <path d="M0 30 Q 10 10 20 30 T 40 30 T 60 25 T 80 35 T 100 20 T 120 40 T 140 28 T 160 32 T 180 30 T 200 30" stroke="#06b6d4" stroke-width="1.5" fill="none" opacity="0.85"/>
+            </svg>
+          </div>
+        </div>
+        <div class="node-footer"><span>$0.020</span><span>queued</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================= VARIANT C ========================= -->
+  <div class="variant-row v-c">
+    <div class="variant-tag">Variant C · Instrument panel</div>
+    <h2 class="variant-title">Each node looks like a piece of pro creative gear</h2>
+    <p class="variant-desc">LCD readouts, LED status indicators, knob/slider hints, mono-spaced labels. Nodes feel tactile and serious — Eurorack synth meets video deck. Highest commitment, ~3-4 days, most distinctive identity, may feel niche to some users.</p>
+    <div class="pipeline">
+      <!-- SCRIPT -->
+      <div class="node">
+        <div class="port in text"></div>
+        <div class="port out text"></div>
+        <div class="node-header">
+          <div class="led script"></div>
+          <div class="node-title-block">
+            <div class="node-type">SCRIPT-01</div>
+            <div class="node-name">Opening narration</div>
+          </div>
+          <div class="status-dot complete"></div>
+        </div>
+        <div class="panel">
+          <div class="lcd text">&gt; "In the year of the<br>&nbsp;&nbsp;great drought..."<br>&nbsp;&nbsp;[ 142 tokens ]</div>
+          <div class="knobs"><div class="knob"><span style="width:60%"></span></div><div class="knob"><span style="width:30%"></span></div><div class="knob"><span style="width:80%"></span></div></div>
+        </div>
+        <div class="node-footer"><span>$0.012</span><span>2.4s</span></div>
+      </div>
+      <div class="connector text"></div>
+      <!-- IMAGE -->
+      <div class="node running">
+        <div class="port in text"></div>
+        <div class="port out image"></div>
+        <div class="node-header">
+          <div class="led image"></div>
+          <div class="node-title-block">
+            <div class="node-type">IMG-GEN-01</div>
+            <div class="node-name">Scene 01 · river dawn</div>
+          </div>
+          <div class="status-dot running"></div>
+        </div>
+        <div class="panel">
+          <div class="lcd image">SDXL · 1024x768<br>STEPS: 028 / 050<br>ETA: 00:14</div>
+          <div class="knobs"><div class="knob"><span style="width:55%"></span></div><div class="knob"><span style="width:75%"></span></div><div class="knob"><span style="width:40%"></span></div></div>
+        </div>
+        <div class="node-footer"><span>$0.040</span><span>generating…</span></div>
+      </div>
+      <div class="connector image"></div>
+      <!-- VIDEO -->
+      <div class="node">
+        <div class="port in image"></div>
+        <div class="port out video"></div>
+        <div class="node-header">
+          <div class="led video"></div>
+          <div class="node-title-block">
+            <div class="node-type">VID-DECK-01</div>
+            <div class="node-name">Drift motion · 4s</div>
+          </div>
+          <div class="status-dot queued"></div>
+        </div>
+        <div class="panel">
+          <div class="lcd video">DURATION: 04.00s<br>FPS: 24<br>STATUS: QUEUED</div>
+          <div class="knobs"><div class="knob"><span style="width:25%"></span></div><div class="knob"><span style="width:50%"></span></div><div class="knob"><span style="width:65%"></span></div></div>
+        </div>
+        <div class="node-footer"><span>$0.180</span><span>queued</span></div>
+      </div>
+      <div class="connector video"></div>
+      <!-- AUDIO -->
+      <div class="node">
+        <div class="port in text"></div>
+        <div class="port out audio"></div>
+        <div class="node-header">
+          <div class="led audio"></div>
+          <div class="node-title-block">
+            <div class="node-type">AUDIO-VO-01</div>
+            <div class="node-name">VO · warm female</div>
+          </div>
+          <div class="status-dot queued"></div>
+        </div>
+        <div class="panel">
+          <div class="lcd audio">VOICE: warm-fem-02<br>RATE: 1.00x<br>SR: 44.1kHz</div>
+          <div class="meter">
+            <div style="height:30%"></div>
+            <div style="height:55%"></div>
+            <div style="height:80%"></div>
+            <div style="height:45%"></div>
+            <div style="height:70%"></div>
+            <div style="height:35%"></div>
+            <div style="height:60%"></div>
+            <div style="height:50%"></div>
+            <div style="height:75%"></div>
+            <div style="height:40%"></div>
+          </div>
+        </div>
+        <div class="node-footer"><span>$0.020</span><span>queued</span></div>
+      </div>
+    </div>
+  </div>
+
+  <p class="footnote">All three use the same locked tokens (warm amber, dark surfaces, port-type colors). Differences are in body content metaphor, header treatment, and tactile detail.</p>
+</div>
+</body>
+</html>

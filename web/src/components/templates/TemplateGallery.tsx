@@ -143,10 +143,10 @@ export function TemplateGallery({ onClose }: TemplateGalleryProps) {
 
   return (
     <div
+      className="clotho-z-modal"
       style={{
         position: 'fixed',
         inset: 0,
-        zIndex: 1000,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',

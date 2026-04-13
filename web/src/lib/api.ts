@@ -231,6 +231,25 @@ const templateApi = {
   get: (id: string) => get<TemplateDetail>(`/templates/${id}`),
 };
 
-export const api = { get, post, put, del, credentials, exportPipeline, importPipeline, templates: templateApi };
+// ---------------------------------------------------------------------------
+// LLM Provider Discovery API
+// ---------------------------------------------------------------------------
+
+export interface OllamaModel {
+  name: string;
+  size?: number;
+  modified?: string;
+}
+
+export interface OllamaModelsResponse {
+  models: OllamaModel[];
+  status: 'ok' | 'ollama_not_running';
+}
+
+async function fetchOllamaModels(): Promise<OllamaModelsResponse> {
+  return get<OllamaModelsResponse>('/v1/llm/models?provider=ollama');
+}
+
+export const api = { get, post, put, del, credentials, exportPipeline, importPipeline, templates: templateApi, fetchOllamaModels };
 
 export { ApiError };

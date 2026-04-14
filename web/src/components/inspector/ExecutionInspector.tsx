@@ -1,6 +1,33 @@
 import type { StepResult, ExecutionStatus } from '../../lib/types';
 import { InspectorGroup } from './InspectorGroup';
 import { mapError } from '../../lib/errorRemediation';
+import { resolveFileURL, isResolvableFile, revealInFinder } from '../../lib/api';
+
+// ---------------------------------------------------------------------------
+// File-URL extension sniffing — used when the step output is a
+// `clotho://file/...` reference. The backend may hand back .png, .mp4, .mp3,
+// or an unknown extension; we match against the actual filename so we pick
+// the right media element without round-tripping to the server.
+// ---------------------------------------------------------------------------
+
+const IMAGE_EXTS = ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp'];
+const AUDIO_EXTS = ['.mp3', '.m4a', '.wav', '.ogg', '.flac'];
+const VIDEO_EXTS = ['.mp4', '.webm', '.mov'];
+
+type FileMediaKind = 'image' | 'audio' | 'video' | 'other';
+
+function classifyFileRef(ref: string): FileMediaKind {
+  const lower = ref.toLowerCase();
+  if (IMAGE_EXTS.some((ext) => lower.endsWith(ext))) return 'image';
+  if (AUDIO_EXTS.some((ext) => lower.endsWith(ext))) return 'audio';
+  if (VIDEO_EXTS.some((ext) => lower.endsWith(ext))) return 'video';
+  return 'other';
+}
+
+function filenameFromRef(ref: string): string {
+  const slash = ref.lastIndexOf('/');
+  return slash >= 0 ? ref.slice(slash + 1) : ref;
+}
 
 // ---------------------------------------------------------------------------
 // Status badge colours
@@ -102,6 +129,18 @@ export function ExecutionInspector({ step }: ExecutionInspectorProps) {
                 forceOpen={Boolean(step.error)}
               >
                 <OutputPreview output={step.output} />
+                {isResolvableFile(step.output) && (
+                  <div style={{ marginTop: 8 }}>
+                    <button
+                      type="button"
+                      className="clotho-reveal-btn"
+                      onClick={() => revealInFinder(step.output!)}
+                      title="Open containing folder"
+                    >
+                      Reveal in folder
+                    </button>
+                  </div>
+                )}
               </InspectorGroup>
             </div>
           )}
@@ -173,6 +212,61 @@ function OutputPreview({ output }: { output: string }) {
     border: '1px solid #334155',
     maxHeight: 320,
   };
+
+  // Stage B wave 5 — clotho://file/ references are on-disk artifacts written
+  // by the provider layer. We resolve them to /api/files/{path} for the
+  // <img> / <audio> / <video> src, and we sniff the extension to pick the
+  // right element. Anything we can't classify falls back to a text link so
+  // users can still reach the artifact.
+  if (isResolvableFile(output)) {
+    const resolved = resolveFileURL(output);
+    const kind = classifyFileRef(output);
+    const filename = filenameFromRef(output);
+    if (kind === 'image') {
+      return (
+        <div style={mediaBlock}>
+          <img
+            src={resolved}
+            alt="Generated output"
+            style={{ width: '100%', height: 'auto', borderRadius: 3, display: 'block' }}
+          />
+        </div>
+      );
+    }
+    if (kind === 'audio') {
+      return (
+        <div style={mediaBlock}>
+          <audio controls src={resolved} style={{ width: '100%' }} />
+        </div>
+      );
+    }
+    if (kind === 'video') {
+      return (
+        <div style={mediaBlock}>
+          <video controls src={resolved} style={{ width: '100%', borderRadius: 3 }} />
+        </div>
+      );
+    }
+    return (
+      <a
+        href={resolved}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{
+          display: 'inline-block',
+          padding: '6px 10px',
+          background: '#1a1c2e',
+          border: '1px solid #334155',
+          borderRadius: 4,
+          color: '#e2e8f0',
+          fontSize: 12,
+          textDecoration: 'none',
+        }}
+      >
+        Open {filename}
+      </a>
+    );
+  }
 
   if (output.startsWith('data:image/')) {
     return (

@@ -250,6 +250,72 @@ async function fetchOllamaModels(): Promise<OllamaModelsResponse> {
   return get<OllamaModelsResponse>('/v1/llm/models?provider=ollama');
 }
 
+// ---------------------------------------------------------------------------
+// File URL resolution (Stage B, wave 5)
+//
+// Backend providers write generated media to disk under a per-execution
+// artifacts directory and return references shaped as `clotho://file/{path}`.
+// These references are portable (they don't leak absolute host paths) but
+// they aren't fetchable by the browser as-is. `resolveFileURL` translates
+// them to the `/api/files/{path}` endpoint registered on the backend router.
+//
+// Data URIs (`data:image/...`) and absolute http(s) URLs from external
+// providers like Replicate are passed through untouched so <img> / <audio>
+// / <video> keep working for every source.
+// ---------------------------------------------------------------------------
+
+const FILE_SCHEME = 'clotho://file/';
+
+/**
+ * Resolves a provider-returned output reference to a URL the browser can fetch.
+ *
+ * - `clotho://file/{path}` -> `/api/files/{path}` (served by the backend files handler).
+ * - `data:...` data URIs -> returned unchanged (inline bytes).
+ * - `http(s)://...` URLs -> returned unchanged (external providers like Replicate).
+ * - Anything else -> returned unchanged.
+ *
+ * The returned value is safe to use as `<img src>`, `<audio src>`, or
+ * `<video src>`. In NO_AUTH mode the backend auth-bypass middleware lets
+ * the request through without credentials; in future auth modes the same
+ * endpoint will require the session cookie.
+ */
+export function resolveFileURL(ref: string): string {
+  if (!ref) return ref;
+  if (ref.startsWith(FILE_SCHEME)) {
+    const path = ref.slice(FILE_SCHEME.length);
+    return `${BASE}/files/${path}`;
+  }
+  return ref;
+}
+
+/**
+ * True for `clotho://file/` references — lets components render the Reveal
+ * button and other on-disk-file-only affordances conditionally without
+ * re-parsing the scheme at every call site.
+ */
+export function isResolvableFile(ref: string | undefined | null): boolean {
+  return typeof ref === 'string' && ref.startsWith(FILE_SCHEME);
+}
+
+/**
+ * POSTs to `/api/files/reveal` — the backend opens the containing folder
+ * in the user's file manager (Finder on macOS). No-ops for non-file refs.
+ * Swallows errors silently; the button is best-effort polish.
+ */
+export async function revealInFinder(ref: string): Promise<void> {
+  if (!isResolvableFile(ref)) return;
+  const path = ref.slice(FILE_SCHEME.length);
+  try {
+    await fetch(`${BASE}/files/reveal`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    });
+  } catch {
+    // best-effort — the UI doesn't surface a failure state for Reveal
+  }
+}
+
 export const api = { get, post, put, del, credentials, exportPipeline, importPipeline, templates: templateApi, fetchOllamaModels };
 
 export { ApiError };

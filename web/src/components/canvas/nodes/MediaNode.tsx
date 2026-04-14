@@ -6,6 +6,7 @@ import { LOCAL_MEDIA_PROVIDERS } from '../../inspector/MediaInspector';
 import { usePipelineStore } from '../../../stores/pipelineStore';
 import { useExecutionStore } from '../../../stores/executionStore';
 import { mapError } from '../../../lib/errorRemediation';
+import { resolveFileURL } from '../../../lib/api';
 
 // ---------------------------------------------------------------------------
 // Media type icons & labels
@@ -58,7 +59,11 @@ function MediaNodeInner({ id, data, selected }: NodeProps<MediaNodeType>) {
   const config = data.config as MediaNodeConfig;
   const mediaType = config.media_type;
   const status = stepResult?.status;
-  const output = stepResult?.output;
+  const rawOutput = stepResult?.output;
+  // Stage B wave 5 — providers return `clotho://file/…` refs for on-disk
+  // artifacts; `resolveFileURL` rewrites those to `/api/files/…` so the
+  // browser can fetch them. Data URIs and external URLs pass through.
+  const output = rawOutput ? resolveFileURL(rawOutput) : rawOutput;
   const error = stepResult?.error;
   const cost = stepResult?.cost;
   const duration = stepResult?.duration_ms;

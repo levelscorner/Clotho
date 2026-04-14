@@ -68,6 +68,26 @@ describe('BaseNode', () => {
     expect(btn).toBeInTheDocument();
   });
 
+  it('delete button has no native title tooltip (would clip outside node)', () => {
+    renderBaseNode({ label: 'Script Writer' });
+    const btn = screen.getByRole('button', { name: /Delete node Script Writer/i });
+    expect(btn.getAttribute('title')).toBeNull();
+  });
+
+  it('applies clotho-handle--{type} class to each port handle', () => {
+    const { container } = renderBaseNode();
+    // text input port
+    expect(container.querySelector('.clotho-handle--text')).toBeTruthy();
+    // image_prompt input port
+    expect(container.querySelector('.clotho-handle--image_prompt')).toBeTruthy();
+    // All handles carry the base "clotho-handle" class so the ring/dot
+    // CSS treatment applies.
+    const handles = container.querySelectorAll('.react-flow__handle');
+    handles.forEach((h) => {
+      expect(h.className).toContain('clotho-handle');
+    });
+  });
+
   it('falls back to node id in delete button label when no label is provided', () => {
     render(
       withProvider(

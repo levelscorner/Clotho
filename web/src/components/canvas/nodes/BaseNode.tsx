@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import type { Port, ExecutionStatus } from '../../../lib/types';
-import { PORT_COLORS, PORT_TYPE_LABEL } from '../../../lib/portCompatibility';
+import { PORT_TYPE_LABEL } from '../../../lib/portCompatibility';
 import { useExecutionStore } from '../../../stores/executionStore';
 import { usePipelineStore } from '../../../stores/pipelineStore';
 
@@ -74,11 +74,22 @@ function BaseNodeInner({
         type="button"
         className="clotho-node__delete-btn"
         aria-label={deleteLabel}
-        title={deleteLabel}
         onClick={handleDelete}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <span aria-hidden="true">×</span>
+        <svg
+          className="clotho-node__delete-icon"
+          viewBox="0 0 12 12"
+          aria-hidden="true"
+          focusable="false"
+        >
+          <path
+            d="M3 3 L9 9 M9 3 L3 9"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+          />
+        </svg>
       </button>
 
       {/* Input handles + hover labels */}
@@ -91,10 +102,8 @@ function BaseNodeInner({
               id={port.id}
               type="target"
               position={Position.Left}
-              style={{
-                background: PORT_COLORS[port.type],
-                top,
-              }}
+              className={`clotho-handle clotho-handle--${port.type}`}
+              style={{ top }}
               title={`${port.name} (${port.type})`}
             />
             <span
@@ -120,10 +129,8 @@ function BaseNodeInner({
               id={port.id}
               type="source"
               position={Position.Right}
-              style={{
-                background: PORT_COLORS[port.type],
-                top,
-              }}
+              className={`clotho-handle clotho-handle--${port.type}`}
+              style={{ top }}
               title={`${port.name} (${port.type})`}
             />
             <span

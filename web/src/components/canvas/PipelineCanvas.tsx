@@ -3,6 +3,7 @@ import {
   ReactFlow,
   Background,
   Controls,
+  useReactFlow,
   type NodeTypes,
   type Node,
   type Viewport,
@@ -155,11 +156,23 @@ export function PipelineCanvas() {
     [addNode],
   );
 
+  const { setCenter } = useReactFlow();
   const onNodeClick = useCallback(
     (_event: React.MouseEvent, node: Node<PipelineNodeData>) => {
       setSelectedNode(node.id);
+      // Smoothly pan the canvas to center the clicked node so partially-
+      // visible / clipped nodes come fully into view. Keep the current zoom
+      // by passing the existing viewport zoom.
+      const width = node.measured?.width ?? node.width ?? 220;
+      const height = node.measured?.height ?? node.height ?? 150;
+      const centerX = node.position.x + width / 2;
+      const centerY = node.position.y + height / 2;
+      setCenter(centerX, centerY, {
+        duration: 300,
+        zoom: storedViewport.zoom,
+      });
     },
-    [setSelectedNode],
+    [setSelectedNode, setCenter, storedViewport.zoom],
   );
 
   const defaultEdgeOptions = useMemo(

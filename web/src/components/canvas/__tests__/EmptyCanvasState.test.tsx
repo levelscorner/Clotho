@@ -1,7 +1,15 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, cleanup } from '@testing-library/react';
+import { ReactFlowProvider } from '@xyflow/react';
+import type { ReactElement } from 'react';
 import { EmptyCanvasState } from '../EmptyCanvasState';
 import { usePipelineStore } from '../../../stores/pipelineStore';
+
+// EmptyCanvasState now calls useReactFlow().fitView after loading the sample
+// pipeline, which requires a ReactFlowProvider ancestor. Wrap every render.
+function renderWithProvider(ui: ReactElement) {
+  return render(<ReactFlowProvider>{ui}</ReactFlowProvider>);
+}
 
 // ---------------------------------------------------------------------------
 // localStorage stub for a node environment
@@ -66,7 +74,7 @@ describe('EmptyCanvasState', () => {
   });
 
   it('renders when pipeline has zero nodes and key is not dismissed', () => {
-    const { container } = render(<EmptyCanvasState />);
+    const { container } = renderWithProvider(<EmptyCanvasState />);
     expect(container.innerHTML).toContain('LOAD SAMPLE PIPELINE');
     expect(container.innerHTML).toContain('empty-canvas__cluster');
     expect(container.innerHTML).toContain('Script Writer');
@@ -80,7 +88,7 @@ describe('EmptyCanvasState', () => {
     const storage = (globalThis as unknown as { localStorage: StorageLike })
       .localStorage;
     storage.setItem('clotho.empty-state.dismissed', '1');
-    const { container } = render(<EmptyCanvasState />);
+    const { container } = renderWithProvider(<EmptyCanvasState />);
     expect(container.innerHTML).toContain('LOAD SAMPLE PIPELINE');
     // The stale flag has been cleared.
     expect(storage.getItem('clotho.empty-state.dismissed')).toBeNull();
@@ -118,12 +126,12 @@ describe('EmptyCanvasState', () => {
   });
 
   it('shows the corner template hint', () => {
-    const { container } = render(<EmptyCanvasState />);
+    const { container } = renderWithProvider(<EmptyCanvasState />);
     expect(container.innerHTML).toContain('⌘K');
   });
 
   it('includes three ghost nodes with distinct body variants', () => {
-    const { container } = render(<EmptyCanvasState />);
+    const { container } = renderWithProvider(<EmptyCanvasState />);
     expect(container.innerHTML).toContain('empty-canvas__ghost-body--script');
     expect(container.innerHTML).toContain('empty-canvas__ghost-body--matte');
     expect(container.innerHTML).toContain('empty-canvas__ghost-body--reel');

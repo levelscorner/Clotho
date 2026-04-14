@@ -49,16 +49,15 @@
 
 .clotho-node__delete-btn {
   position: absolute;
-  top: -6px;
-  right: -6px;
-  width: 18px;
-  height: 18px;
+  top: 8px;
+  right: 8px;
+  width: 20px;
+  height: 20px;
   padding: 0;
   border-radius: 50%;
   background: var(--surface-overlay);
   color: var(--text-secondary);
   border: 1px solid var(--surface-border);
-  font-size: 12px;
   line-height: 1;
   display: flex;
   align-items: center;
@@ -71,12 +70,13 @@
     background-color 150ms var(--ease-out),
     color 150ms var(--ease-out),
     border-color 150ms var(--ease-out);
-  z-index: 3;
+  z-index: 4;
 }
 
-.clotho-node__delete-btn span {
+.clotho-node__delete-icon {
   display: block;
-  transform: translateY(-0.5px);
+  width: 12px;
+  height: 12px;
 }
 
 .react-flow__node:hover .clotho-node__delete-btn,
@@ -86,8 +86,8 @@
 }
 
 .clotho-node__delete-btn:hover {
-  background: rgba(248, 113, 113, 0.12);
-  color: var(--status-failed);
+  background: var(--status-failed);
+  color: #fff;
   border-color: var(--status-failed);
 }
 
@@ -102,7 +102,6 @@
 
 .clotho-port-label {
   position: absolute;
-  transform: translateY(-50%);
   font-family: var(--font-mono);
   font-size: 9px;
   letter-spacing: 0.3px;
@@ -117,12 +116,18 @@
   z-index: 2;
 }
 
+/* Anchor labels OUTSIDE the node body so they don't overlap preview text.
+   Inputs sit to the left of the left edge; outputs to the right of the right
+   edge. translate(-50%) on Y keeps the label vertically centered on the
+   handle; the X translate shifts the entire box past the node border. */
 .clotho-port-label--in {
-  left: 12px;
+  left: -8px;
+  transform: translate(-100%, -50%);
 }
 
 .clotho-port-label--out {
-  right: 12px;
+  right: -8px;
+  transform: translate(100%, -50%);
 }
 
 .react-flow__node:hover .clotho-port-label,
@@ -452,13 +457,53 @@
 }
 
 /* Port handle overrides --------------------------------------------------- */
+/* Hollow ring with inner filled dot — target/puzzle-piece feel.
+   `currentColor` is set per-port-type via the `.clotho-handle--{type}`
+   classes; the ring uses it for the border and the inner dot uses it
+   via the ::after pseudo. */
 
-.react-flow__handle {
-  width: 10px !important;
-  height: 10px !important;
-  border: 2px solid var(--surface-raised) !important;
+.react-flow__handle.clotho-handle {
+  width: 12px !important;
+  height: 12px !important;
+  background: var(--surface-base) !important;
+  border: 2px solid currentColor !important;
   border-radius: 50% !important;
+  transition:
+    transform 150ms var(--ease-out),
+    box-shadow 150ms var(--ease-out);
 }
+
+.react-flow__handle.clotho-handle::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  transform: translate(-50%, -50%);
+}
+
+.react-flow__handle.clotho-handle:hover {
+  transform: scale(1.25);
+  box-shadow: 0 0 8px currentColor;
+}
+
+/* React Flow adds its own transform classes for left/right positioning;
+   preserve those while still letting our :hover rule apply. React Flow
+   already handles position via inline style, so our scale() composes. */
+
+.clotho-handle--text          { color: var(--port-text); }
+.clotho-handle--image         { color: var(--port-image); }
+.clotho-handle--video         { color: var(--port-video); }
+.clotho-handle--audio         { color: var(--port-audio); }
+.clotho-handle--json          { color: var(--accent); }
+.clotho-handle--any           { color: var(--text-muted); }
+/* Prompt subtypes follow their parent "text" color. */
+.clotho-handle--image_prompt,
+.clotho-handle--video_prompt,
+.clotho-handle--audio_prompt  { color: var(--port-text); }
 
 /* Reduced motion ---------------------------------------------------------- */
 

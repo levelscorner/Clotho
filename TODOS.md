@@ -119,3 +119,24 @@ Captured during /plan-eng-review on 2026-04-13 (branch: design/warm-amber-v2).
 **Context:** Flagged during eng review as future extension point. Current sprint ships fixed metaphors.
 
 **Depends on / blocked by:** None, but low priority.
+
+### User-defined agent personalities (major refactor)
+
+**What:** Rip out the hardcoded 7 built-in agent presets. Replace with a
+"Create Agent" flow where users define their own persona, prompt, model,
+and optional visual treatment. The paper-rule / LCD / matte materials
+become user-selectable themes rather than preset-driven styling.
+
+**Why:** Founder flagged during live testing: "I don't like the personalities
+... it's like they just catered to me. What if someone else wants their own
+personalities or agent, in that case they should be totally different."
+The current preset system is opinionated ABOUT taste rather than enabling taste.
+
+**Pros:** Users define meaningful agents for their workflow. Product stops
+imposing a specific creator aesthetic.
+
+**Cons:** ~2-3 CC days of work. Touches: domain/preset.go, migrations, frontend
+NodePalette, AgentInspector preset-category dispatch, DESIGN.md, onboarding.
+
+**Context:** Flagged 2026-04-15 during live testing on design/warm-amber-v2.
+Log it now, plan properly in a dedicated /office-hours session.

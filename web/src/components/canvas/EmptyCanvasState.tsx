@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useReactFlow } from '@xyflow/react';
 import { usePipelineStore } from '../../stores/pipelineStore';
 import type {
   AgentNodeConfig,
@@ -191,11 +192,18 @@ export function EmptyCanvasState(): JSX.Element | null {
     }
   }, [nodeCount, dismissed, wasVisible]);
 
+  const { fitView } = useReactFlow();
   const onLoadSample = useCallback(() => {
     loadSamplePipeline();
     markDismissed();
     setDismissed(true);
-  }, []);
+    // Wait a frame for React Flow to register the new nodes, then fit so
+    // the entire sample graph is visible on the current viewport regardless
+    // of prior zoom/pan state.
+    requestAnimationFrame(() => {
+      fitView({ padding: 0.15, duration: 300 });
+    });
+  }, [fitView]);
 
   // Determine visibility before effects so the "wasVisible" marker is accurate.
   const shouldShow =

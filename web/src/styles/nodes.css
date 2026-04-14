@@ -400,3 +400,13 @@
   stroke: var(--surface-border) !important;
   stroke-width: 2 !important;
 }
+
+/* Local-provider cost badge — surfaces "local" in warm amber when a node
+   uses an on-device provider (kokoro, comfyui, ollama) so zero-cost
+   inference is visible at a glance. */
+.clotho-node__cost-local {
+  color: var(--accent);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.03em;
+}

@@ -42,3 +42,17 @@ docker-down:
 # Clean
 clean:
 	rm -rf bin/ web/dist/ coverage.out coverage.html
+
+# Full local stack (Postgres + Kokoro + ComfyUI + backend + frontend) with NO_AUTH bypass.
+# Requires Docker daemon for Postgres, and prior setup of Kokoro-FastAPI + ComfyUI in /Users/level/ws/models/.
+dev-full:
+	./scripts/dev-full.sh up
+
+dev-status:
+	./scripts/dev-full.sh status
+
+dev-logs:
+	./scripts/dev-full.sh logs
+
+dev-stop:
+	./scripts/dev-stop.sh

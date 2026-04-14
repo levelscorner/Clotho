@@ -9,17 +9,53 @@ import { OllamaModelDropdown } from './OllamaModelDropdown';
 // Constants
 // ---------------------------------------------------------------------------
 
-const PROVIDERS = ['replicate', 'openai', 'elevenlabs'] as const;
+const PROVIDERS = [
+  'replicate',
+  'openai',
+  'elevenlabs',
+  'kokoro', // local TTS via Kokoro-FastAPI (http://localhost:8880)
+  'comfyui', // local image gen via ComfyUI (http://localhost:8188)
+] as const;
 
 const MODELS_BY_PROVIDER: Record<string, string[]> = {
   replicate: ['flux-1.1-pro', 'sdxl', 'stable-video-diffusion', 'musicgen'],
   openai: ['dall-e-3', 'dall-e-2', 'tts-1', 'tts-1-hd'],
   elevenlabs: ['eleven_multilingual_v2', 'eleven_turbo_v2'],
+  kokoro: ['kokoro'], // single model; the real knob for Kokoro is voice
+  comfyui: ['flux1-schnell'], // single checkpoint for now; all-in-one fp8
 };
+
+// Providers that run entirely on the local machine. Nodes using these show
+// "local" in place of a dollar cost and get a tinted cost badge.
+export const LOCAL_MEDIA_PROVIDERS = new Set<string>(['kokoro', 'comfyui']);
 
 const ASPECT_RATIOS = ['1:1', '16:9', '9:16', '4:3'] as const;
 
-const VOICES = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'] as const;
+// Voice sets per audio provider. Kokoro's v1_0 voices are exposed as-is.
+// The KOKORO_VOICES prefix encodes language+gender: `af_` American female,
+// `am_` American male, `bf_` British female, `bm_` British male.
+const OPENAI_VOICES = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'] as const;
+const KOKORO_VOICES = [
+  'af_bella',
+  'af_sarah',
+  'af_nicole',
+  'af_sky',
+  'am_adam',
+  'am_michael',
+  'bf_emma',
+  'bf_isabella',
+  'bm_george',
+  'bm_lewis',
+] as const;
+const VOICES_BY_PROVIDER: Record<string, readonly string[]> = {
+  openai: OPENAI_VOICES,
+  elevenlabs: OPENAI_VOICES, // ElevenLabs uses voice IDs; placeholder set kept in sync with OpenAI for now.
+  kokoro: KOKORO_VOICES,
+  replicate: OPENAI_VOICES,
+};
+
+// Back-compat alias: old code referenced a single VOICES constant.
+const VOICES = OPENAI_VOICES;
 
 // ---------------------------------------------------------------------------
 // Styles
@@ -217,10 +253,10 @@ export function MediaInspector({ nodeId, label, config, stepResult }: MediaInspe
           <label style={labelStyle}>Voice</label>
           <select
             style={inputStyle}
-            value={config.voice ?? 'alloy'}
+            value={config.voice ?? (VOICES_BY_PROVIDER[config.provider]?.[0] ?? 'alloy')}
             onChange={(e) => update({ voice: e.target.value })}
           >
-            {VOICES.map((v) => (
+            {(VOICES_BY_PROVIDER[config.provider] ?? VOICES).map((v) => (
               <option key={v} value={v}>
                 {v}
               </option>

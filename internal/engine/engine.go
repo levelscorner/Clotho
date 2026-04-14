@@ -153,14 +153,23 @@ func (e *Engine) ExecuteWorkflow(ctx context.Context, execution domain.Execution
 		start := time.Now()
 		chunks, resultCh, errCh := executor.ExecuteStream(ctx, node, inputs)
 
-		// Forward streaming chunks as events
+		// Forward streaming chunks as events. Payload must be a JSON object
+		// with a named `chunk` field so the frontend can read it directly
+		// via event.data.chunk — raw-marshaled strings would arrive as
+		// undefined and accumulate as "undefinedundefined" in the store.
 		for chunk := range chunks {
-			chunkData, _ := json.Marshal(chunk.Content)
+			chunkPayload, err := json.Marshal(map[string]string{
+				"chunk": chunk.Content,
+			})
+			if err != nil {
+				slog.Error("failed to marshal chunk payload", "error", err)
+				continue
+			}
 			e.eventBus.Publish(execution.ID, Event{
 				Type:        EventStepChunk,
 				ExecutionID: execution.ID,
 				NodeID:      node.ID,
-				Data:        json.RawMessage(chunkData),
+				Data:        chunkPayload,
 				Timestamp:   time.Now(),
 			})
 		}
@@ -206,12 +215,25 @@ func (e *Engine) ExecuteWorkflow(ctx context.Context, execution domain.Execution
 			slog.Error("failed to update step result", "error", updateErr)
 		}
 
-		// Publish step completed
+		// Publish step completed with a named payload. Frontend reads each
+		// field by name from event.data — do NOT put the raw step output
+		// directly on Event.Data, or the frontend cannot tell it apart
+		// from metadata. See also the mirror shape in SSE handler tests.
+		completionPayload, err := json.Marshal(map[string]any{
+			"output":      json.RawMessage(stepOut.Data),
+			"tokens_used": stepOut.TokensUsed,
+			"cost_usd":    stepOut.CostUSD,
+			"duration_ms": durationMs,
+		})
+		if err != nil {
+			slog.Error("failed to marshal step_completed payload", "error", err)
+			completionPayload = []byte("{}")
+		}
 		e.eventBus.Publish(execution.ID, Event{
 			Type:        EventStepCompleted,
 			ExecutionID: execution.ID,
 			NodeID:      node.ID,
-			Data:        stepOut.Data,
+			Data:        completionPayload,
 			Timestamp:   time.Now(),
 		})
 	}

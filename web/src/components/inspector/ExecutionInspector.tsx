@@ -82,22 +82,7 @@ export function ExecutionInspector({ step }: ExecutionInspectorProps) {
               >
                 Output
               </div>
-              <pre
-                style={{
-                  background: '#1a1c2e',
-                  padding: 8,
-                  borderRadius: 4,
-                  whiteSpace: 'pre-wrap',
-                  wordBreak: 'break-word',
-                  maxHeight: 300,
-                  overflow: 'auto',
-                  fontSize: 12,
-                  color: '#e2e8f0',
-                  border: '1px solid #334155',
-                }}
-              >
-                {step.output}
-              </pre>
+              <OutputPreview output={step.output} />
             </div>
           )}
 
@@ -132,5 +117,70 @@ export function ExecutionInspector({ step }: ExecutionInspectorProps) {
         </InspectorGroup>
       )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Output preview — renders the step output with media-type awareness.
+//
+// Image/audio/video data URIs become inline <img>/<audio>/<video> elements
+// so the inspector shows a real preview instead of a multi-megabyte base64
+// string. Everything else falls back to a scrollable <pre>.
+// ---------------------------------------------------------------------------
+
+function OutputPreview({ output }: { output: string }) {
+  const mediaBlock: React.CSSProperties = {
+    background: '#1a1c2e',
+    padding: 8,
+    borderRadius: 4,
+    border: '1px solid #334155',
+    maxHeight: 320,
+  };
+
+  if (output.startsWith('data:image/')) {
+    return (
+      <div style={mediaBlock}>
+        <img
+          src={output}
+          alt="Generated output"
+          style={{ width: '100%', height: 'auto', borderRadius: 3, display: 'block' }}
+        />
+      </div>
+    );
+  }
+  if (output.startsWith('data:audio/')) {
+    return (
+      <div style={mediaBlock}>
+        <audio controls src={output} style={{ width: '100%' }} />
+      </div>
+    );
+  }
+  if (output.startsWith('data:video/')) {
+    return (
+      <div style={mediaBlock}>
+        <video controls src={output} style={{ width: '100%', borderRadius: 3 }} />
+      </div>
+    );
+  }
+  // Truncate very long plain-text outputs so we never paint a 1MB <pre>.
+  const MAX = 8000;
+  const shown = output.length > MAX ? output.slice(0, MAX) + '\n…(truncated)' : output;
+  return (
+    <pre
+      style={{
+        background: '#1a1c2e',
+        padding: 8,
+        borderRadius: 4,
+        whiteSpace: 'pre-wrap',
+        wordBreak: 'break-word',
+        maxHeight: 300,
+        overflow: 'auto',
+        fontSize: 12,
+        color: '#e2e8f0',
+        border: '1px solid #334155',
+      }}
+    >
+      {shown}
+    </pre>
   );
 }

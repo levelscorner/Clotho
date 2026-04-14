@@ -9,13 +9,16 @@ import { OllamaModelDropdown } from './OllamaModelDropdown';
 // Constants
 // ---------------------------------------------------------------------------
 
-const PROVIDERS = [
-  'replicate',
-  'openai',
-  'elevenlabs',
-  'kokoro', // local TTS via Kokoro-FastAPI (http://localhost:8880)
-  'comfyui', // local image gen via ComfyUI (http://localhost:8188)
-] as const;
+// Only the providers that can actually produce each media type. Kokoro is
+// audio-only; ComfyUI is image-only; Replicate is the universal fallback.
+// The previous approach (one flat PROVIDERS list) let users pick "kokoro"
+// on an Image node, which would always fail at submit time but the UI
+// gave zero warning.
+const PROVIDERS_BY_MEDIA_TYPE: Record<string, readonly string[]> = {
+  image: ['comfyui', 'replicate', 'openai'],
+  video: ['replicate'],
+  audio: ['kokoro', 'openai', 'elevenlabs', 'replicate'],
+};
 
 const MODELS_BY_PROVIDER: Record<string, string[]> = {
   replicate: ['flux-1.1-pro', 'sdxl', 'stable-video-diffusion', 'musicgen'],
@@ -139,6 +142,21 @@ export function MediaInspector({ nodeId, label, config, stepResult }: MediaInspe
     [nodeId, updateNodeConfig],
   );
 
+  // Heal invalid provider choices (e.g. a previously-saved Image node with
+  // provider="kokoro" — impossible combination) by snapping to the first
+  // provider valid for this media_type. Runs once per selection when the
+  // current provider isn't in the allowed list.
+  useEffect(() => {
+    const allowed = PROVIDERS_BY_MEDIA_TYPE[config.media_type] ?? [];
+    if (allowed.length === 0) return;
+    if (allowed.includes(config.provider)) return;
+    const fallback = allowed[0];
+    const models = MODELS_BY_PROVIDER[fallback] ?? [];
+    update({ provider: fallback, model: models[0] ?? '' });
+    // Intentionally depend only on media_type + provider so we don't loop
+    // forever when update() rewrites state within the same render cycle.
+  }, [config.media_type, config.provider, update]);
+
   const handleProviderChange = useCallback(
     (provider: string) => {
       const models = MODELS_BY_PROVIDER[provider] ?? [];
@@ -186,7 +204,7 @@ export function MediaInspector({ nodeId, label, config, stepResult }: MediaInspe
             value={config.provider}
             onChange={(e) => handleProviderChange(e.target.value)}
           >
-            {PROVIDERS.map((p) => (
+            {(PROVIDERS_BY_MEDIA_TYPE[config.media_type] ?? []).map((p) => (
               <option key={p} value={p}>
                 {p}
               </option>

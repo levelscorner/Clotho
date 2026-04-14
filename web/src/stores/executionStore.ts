@@ -131,45 +131,92 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
     eventSource = es;
     set({ isStreaming: true });
 
+    // SSE event envelope — matches internal/engine/events.go Event struct.
+    // The payload fields live under `data` (json.RawMessage on the backend);
+    // we parse them per event type below.
+    interface EventEnvelope<T = unknown> {
+      type: string;
+      execution_id: string;
+      node_id?: string;
+      data?: T;
+      error?: string;
+      timestamp: string;
+    }
+
+    const stringify = (value: unknown): string => {
+      if (value == null) return '';
+      if (typeof value === 'string') return value;
+      // For media nodes, output is typically a data URI string already; for
+      // agent nodes, it's also a string. If a provider returns a structured
+      // object, we serialise it so the Inspector can display something.
+      try {
+        return JSON.stringify(value);
+      } catch {
+        return String(value);
+      }
+    };
+
     es.addEventListener('step_started', (e: MessageEvent) => {
-      const data = JSON.parse(e.data) as { node_id: string };
+      const env = JSON.parse(e.data) as EventEnvelope;
+      if (!env.node_id) return;
       get().updateStep({
-        node_id: data.node_id,
+        node_id: env.node_id,
         status: 'running',
       });
     });
 
     es.addEventListener('step_chunk', (e: MessageEvent) => {
-      const data = JSON.parse(e.data) as {
-        node_id: string;
-        chunk: string;
-      };
-      get().appendChunk(data.node_id, data.chunk);
+      const env = JSON.parse(e.data) as EventEnvelope<{ chunk?: string }>;
+      if (!env.node_id) return;
+      const chunk = env.data?.chunk ?? '';
+      if (!chunk) return;
+      get().appendChunk(env.node_id, chunk);
     });
 
     es.addEventListener('step_completed', (e: MessageEvent) => {
-      const data = JSON.parse(e.data) as StepResult;
-      get().updateStep({ ...data, status: 'completed' });
+      const env = JSON.parse(e.data) as EventEnvelope<{
+        output?: unknown;
+        tokens_used?: number | null;
+        cost_usd?: number | null;
+        duration_ms?: number | null;
+      }>;
+      if (!env.node_id) return;
+      const payload = env.data ?? {};
+      get().updateStep({
+        node_id: env.node_id,
+        status: 'completed',
+        output: stringify(payload.output),
+        tokens_used: payload.tokens_used ?? undefined,
+        cost: payload.cost_usd ?? undefined,
+        duration_ms: payload.duration_ms ?? undefined,
+        completed_at: env.timestamp,
+      });
     });
 
     es.addEventListener('step_failed', (e: MessageEvent) => {
-      const data = JSON.parse(e.data) as StepResult;
-      get().updateStep({ ...data, status: 'failed' });
+      const env = JSON.parse(e.data) as EventEnvelope<{ error?: string }>;
+      if (!env.node_id) return;
+      get().updateStep({
+        node_id: env.node_id,
+        status: 'failed',
+        error: env.error ?? env.data?.error ?? undefined,
+        completed_at: env.timestamp,
+      });
     });
 
     es.addEventListener('execution_completed', (e: MessageEvent) => {
-      const data = JSON.parse(e.data) as { total_cost?: number };
+      const env = JSON.parse(e.data) as EventEnvelope<{ total_cost?: number }>;
       set({
         status: 'completed',
-        totalCost: data.total_cost ?? get().totalCost,
+        totalCost: env.data?.total_cost ?? get().totalCost,
         isStreaming: false,
       });
       get().disconnectSSE();
     });
 
     es.addEventListener('execution_failed', (e: MessageEvent) => {
-      const data = JSON.parse(e.data) as { error?: string };
-      void data;
+      const env = JSON.parse(e.data) as EventEnvelope;
+      void env; // currently unused; keep for future error surfacing
       set({ status: 'failed', isStreaming: false });
       get().disconnectSSE();
     });

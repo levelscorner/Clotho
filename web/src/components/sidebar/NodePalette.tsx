@@ -1,4 +1,10 @@
-import { useEffect, useState, useCallback, type DragEvent } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  useCallback,
+  type DragEvent,
+} from 'react';
 import type {
   AgentPreset,
   AgentNodeConfig,
@@ -10,6 +16,8 @@ import type {
   ToolType,
 } from '../../lib/types';
 import { api } from '../../lib/api';
+import { useUIStore } from '../../stores/uiStore';
+import { MobileHamburger, SmallScreenBanner, PhoneHint } from './MobileHamburger';
 
 // ---------------------------------------------------------------------------
 // DnD helper
@@ -154,7 +162,8 @@ const TOOLS: ToolItem[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Styles
+// Styles — preserved from the prior inline-styled version, minus layout
+// dimensions (those now live in AppShell.css / responsive.css).
 // ---------------------------------------------------------------------------
 
 const sectionLabel: React.CSSProperties = {
@@ -216,6 +225,10 @@ const tileLabelStyle: React.CSSProperties = {
 
 export function NodePalette() {
   const [presets, setPresets] = useState<AgentPreset[]>([]);
+  const mobileOpen = useUIStore((s) => s.mobilePaletteOpen);
+  const closeMobile = useUIStore((s) => s.closeMobilePalette);
+  const asideRef = useRef<HTMLElement | null>(null);
+  const firstFocusableRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     api
@@ -224,11 +237,35 @@ export function NodePalette() {
       .catch(() => {});
   }, []);
 
+  // Escape to close mobile palette. Coordinates with global Escape handler
+  // by only firing when the drawer is actually open.
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeMobile();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [mobileOpen, closeMobile]);
+
+  // Simple focus trap: when mobile drawer opens, focus the close button.
+  useEffect(() => {
+    if (mobileOpen) {
+      firstFocusableRef.current?.focus();
+    }
+  }, [mobileOpen]);
+
   const onDragStart = useCallback(
     (event: DragEvent, payload: DragPayload) => {
       setDragData(event, payload);
+      // Close the mobile drawer once drag starts — desktop parity: once the
+      // user starts dragging the palette is no longer needed.
+      if (mobileOpen) closeMobile();
     },
-    [],
+    [mobileOpen, closeMobile],
   );
 
   const handleHover = (e: React.MouseEvent, hovering: boolean) => {
@@ -244,7 +281,6 @@ export function NodePalette() {
 
     const simple = `${words[0][0].toUpperCase()}${words[1][0].toLowerCase()}`;
 
-    // Check for collisions with other presets
     const hasCollision = allNames.some((other) => {
       if (other === name) return false;
       const ow = other.split(/\s+/).filter(Boolean);
@@ -254,100 +290,172 @@ export function NodePalette() {
 
     if (!hasCollision) return simple;
 
-    // Use first two chars of the first word to disambiguate
     return words[0].slice(0, 2).charAt(0).toUpperCase() + words[0].slice(1, 2).toLowerCase();
   }, []);
 
+  // When mobile-open, the aside behaves like a dialog. Desktop/tablet keep
+  // the landmark-style aside semantics.
+  const dialogProps = mobileOpen
+    ? ({
+        role: 'dialog' as const,
+        'aria-modal': true as const,
+        'aria-label': 'Node palette',
+      })
+    : {};
+
   return (
-    <aside
-      aria-label="Node palette"
-      style={{
-        width: 210,
-        minWidth: 210,
-        height: '100%',
-        background: 'var(--surface-base)',
-        borderRight: '1px solid var(--surface-border)',
-        overflowY: 'auto',
-        padding: '8px 10px',
-      }}
-    >
-      {/* ---- AGENT ---- */}
-      <h3 style={sectionLabel}>Agent</h3>
-      <div style={gridStyle}>
-        {/* Primary: blank agent */}
+    <>
+      <MobileHamburger />
+      <SmallScreenBanner />
+      <PhoneHint />
+
+      {/* Backdrop: rendered only when mobile drawer is open. CSS hides it on
+          desktop regardless, but avoiding DOM noise keeps the canvas clean. */}
+      {mobileOpen && (
         <div
-          draggable
-          onDragStart={(e) =>
-            onDragStart(e, {
-              nodeType: 'agent',
-              config: blankAgentConfig(),
-              ports: defaultAgentPorts(),
-              label: 'Agent',
-            })
-          }
-          style={{ ...tileStyle, gridColumn: 'span 3', flexDirection: 'row', gap: 8, padding: '8px 10px' }}
-          onMouseOver={(e) => handleHover(e, true)}
-          onMouseOut={(e) => handleHover(e, false)}
-        >
-          <div style={tileIconStyle('var(--accent-soft)', 'var(--accent)')}>+</div>
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>New Agent</div>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Drag to canvas</div>
+          className="clotho-palette-backdrop"
+          onClick={closeMobile}
+          aria-hidden="true"
+        />
+      )}
+
+      <aside
+        ref={asideRef}
+        id="clotho-node-palette"
+        aria-label="Node palette"
+        className="clotho-palette"
+        data-mobile-open={mobileOpen ? 'true' : 'false'}
+        {...dialogProps}
+      >
+        {/* Mobile-only close button — hidden via CSS at larger breakpoints. */}
+        {mobileOpen && (
+          <button
+            ref={firstFocusableRef}
+            type="button"
+            onClick={closeMobile}
+            aria-label="Close node palette"
+            style={{
+              position: 'absolute',
+              top: 10,
+              right: 10,
+              width: 32,
+              height: 32,
+              background: 'transparent',
+              border: '1px solid var(--surface-border)',
+              borderRadius: 'var(--radius-sm)',
+              color: 'var(--text-secondary)',
+              fontSize: 16,
+              cursor: 'pointer',
+            }}
+          >
+            {'\u2715'}
+          </button>
+        )}
+
+        {/* ---- AGENT ---- */}
+        <h3 style={sectionLabel}>Agent</h3>
+        <div className="clotho-tile-grid" style={gridStyle}>
+          <div
+            draggable
+            className="clotho-tile-primary"
+            onDragStart={(e) =>
+              onDragStart(e, {
+                nodeType: 'agent',
+                config: blankAgentConfig(),
+                ports: defaultAgentPorts(),
+                label: 'Agent',
+              })
+            }
+            style={{ ...tileStyle, gridColumn: 'span 3', flexDirection: 'row', gap: 8, padding: '8px 10px' }}
+            onMouseOver={(e) => handleHover(e, true)}
+            onMouseOut={(e) => handleHover(e, false)}
+          >
+            <div style={tileIconStyle('var(--accent-soft)', 'var(--accent)')}>+</div>
+            <div className="clotho-tile-primary-text">
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>New Agent</div>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Drag to canvas</div>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* ---- PERSONALITIES ---- */}
-      {presets.length > 0 && (
-        <>
-          <h3 style={{ ...sectionLabel, fontSize: 9 }}>Personalities</h3>
-          <div style={gridStyle}>
-            {presets.map((preset) => (
+        {/* ---- PERSONALITIES ---- */}
+        {presets.length > 0 && (
+          <>
+            <h3 style={{ ...sectionLabel, fontSize: 9 }}>Personalities</h3>
+            <div className="clotho-tile-grid" style={gridStyle}>
+              {presets.map((preset) => (
+                <div
+                  key={preset.id}
+                  draggable
+                  onDragStart={(e) =>
+                    onDragStart(e, {
+                      nodeType: 'agent',
+                      config: preset.config,
+                      ports: defaultAgentPorts(),
+                      label: preset.name,
+                    })
+                  }
+                  style={tileStyle}
+                  onMouseOver={(e) => handleHover(e, true)}
+                  onMouseOut={(e) => handleHover(e, false)}
+                  title={preset.name}
+                >
+                  <div style={tileIconStyle('var(--accent-soft)', 'var(--accent)')}>
+                    {getInitials(preset.name, presets.map((p) => p.name))}
+                  </div>
+                  <div className="clotho-tile-label" style={tileLabelStyle}>{preset.name}</div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* ---- MEDIA ---- */}
+        <h3 style={sectionLabel}>Media</h3>
+        <div className="clotho-tile-grid" style={gridStyle}>
+          {MEDIA_ITEMS.map((item) => {
+            const colorMap: Record<MediaType, { bg: string; fg: string }> = {
+              image: { bg: 'rgba(245, 158, 11, 0.15)', fg: 'var(--port-image)' },
+              video: { bg: 'rgba(239, 68, 68, 0.15)', fg: 'var(--port-video)' },
+              audio: { bg: 'rgba(6, 182, 212, 0.15)', fg: 'var(--port-audio)' },
+            };
+            const c = colorMap[item.mediaType];
+            return (
               <div
-                key={preset.id}
+                key={item.mediaType}
                 draggable
                 onDragStart={(e) =>
                   onDragStart(e, {
-                    nodeType: 'agent',
-                    config: preset.config,
-                    ports: defaultAgentPorts(),
-                    label: preset.name,
+                    nodeType: 'media',
+                    config: item.defaultConfig,
+                    ports: item.ports,
+                    label: item.label,
                   })
                 }
                 style={tileStyle}
                 onMouseOver={(e) => handleHover(e, true)}
                 onMouseOut={(e) => handleHover(e, false)}
-                title={preset.name}
+                title={item.label}
               >
-                <div style={tileIconStyle('var(--accent-soft)', 'var(--accent)')}>
-                  {getInitials(preset.name, presets.map((p) => p.name))}
-                </div>
-                <div style={tileLabelStyle}>{preset.name}</div>
+                <div style={tileIconStyle(c.bg, c.fg)}>{item.initials}</div>
+                <div className="clotho-tile-label" style={tileLabelStyle}>{item.label}</div>
               </div>
-            ))}
-          </div>
-        </>
-      )}
+            );
+          })}
+        </div>
 
-      {/* ---- MEDIA ---- */}
-      <h3 style={sectionLabel}>Media</h3>
-      <div style={gridStyle}>
-        {MEDIA_ITEMS.map((item) => {
-          const colorMap: Record<MediaType, { bg: string; fg: string }> = {
-            image: { bg: 'rgba(245, 158, 11, 0.15)', fg: 'var(--port-image)' },
-            video: { bg: 'rgba(239, 68, 68, 0.15)', fg: 'var(--port-video)' },
-            audio: { bg: 'rgba(6, 182, 212, 0.15)', fg: 'var(--port-audio)' },
-          };
-          const c = colorMap[item.mediaType];
-          return (
+        {/* ---- TOOLS ---- */}
+        <h3 style={sectionLabel}>Tools</h3>
+        <div className="clotho-tile-grid" style={gridStyle}>
+          {TOOLS.map((item) => (
             <div
-              key={item.mediaType}
+              key={item.toolType}
               draggable
               onDragStart={(e) =>
                 onDragStart(e, {
-                  nodeType: 'media',
-                  config: item.defaultConfig,
-                  ports: item.ports,
+                  nodeType: 'tool',
+                  config: toolConfig(item.toolType),
+                  ports: toolPorts(item.toolType),
                   label: item.label,
                 })
               }
@@ -356,40 +464,14 @@ export function NodePalette() {
               onMouseOut={(e) => handleHover(e, false)}
               title={item.label}
             >
-              <div style={tileIconStyle(c.bg, c.fg)}>{item.initials}</div>
-              <div style={tileLabelStyle}>{item.label}</div>
+              <div style={tileIconStyle('rgba(136, 136, 160, 0.15)', 'var(--text-secondary)')}>
+                {item.initials}
+              </div>
+              <div className="clotho-tile-label" style={tileLabelStyle}>{item.label}</div>
             </div>
-          );
-        })}
-      </div>
-
-      {/* ---- TOOLS ---- */}
-      <h3 style={sectionLabel}>Tools</h3>
-      <div style={gridStyle}>
-        {TOOLS.map((item) => (
-          <div
-            key={item.toolType}
-            draggable
-            onDragStart={(e) =>
-              onDragStart(e, {
-                nodeType: 'tool',
-                config: toolConfig(item.toolType),
-                ports: toolPorts(item.toolType),
-                label: item.label,
-              })
-            }
-            style={tileStyle}
-            onMouseOver={(e) => handleHover(e, true)}
-            onMouseOut={(e) => handleHover(e, false)}
-            title={item.label}
-          >
-            <div style={tileIconStyle('rgba(136, 136, 160, 0.15)', 'var(--text-secondary)')}>
-              {item.initials}
-            </div>
-            <div style={tileLabelStyle}>{item.label}</div>
-          </div>
-        ))}
-      </div>
-    </aside>
+          ))}
+        </div>
+      </aside>
+    </>
   );
 }

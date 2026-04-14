@@ -98,6 +98,15 @@ func main() {
 		mediaRegistry.Register("openai", media.NewDALLE(cfg.OpenAIKey))
 		mediaRegistry.Register("openai-tts", media.NewTTS(cfg.OpenAIKey))
 	}
+	// Local media providers — always registered (fall back to network errors
+	// at request time if the servers aren't running, mirroring Ollama's
+	// always-registered pattern).
+	if cfg.KokoroURL != "" {
+		mediaRegistry.Register("kokoro", media.NewKokoro(cfg.KokoroURL))
+	}
+	if cfg.ComfyUIURL != "" {
+		mediaRegistry.Register("comfyui", media.NewComfyUI(cfg.ComfyUIURL))
+	}
 
 	slog.Info("media providers available", "providers", mediaRegistry.List())
 

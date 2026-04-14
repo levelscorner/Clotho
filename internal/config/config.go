@@ -18,6 +18,8 @@ type Config struct {
 	GeminiKey     string        // Google AI Studio API key
 	OpenRouterKey string        // OpenRouter API key
 	OllamaURL      string        // Ollama base URL
+	KokoroURL      string        // Kokoro-FastAPI base URL (local TTS)
+	ComfyUIURL     string        // ComfyUI base URL (local image gen)
 	ReplicateToken string        // Replicate API token
 	LogLevel       slog.Level    // log level
 	JWTSecret     string        // JWT signing secret
@@ -75,6 +77,8 @@ func Load() (*Config, error) {
 		GeminiKey:     getEnv("GEMINI_API_KEY", ""),
 		OpenRouterKey: getEnv("OPENROUTER_API_KEY", ""),
 		OllamaURL:      getEnv("OLLAMA_URL", "http://localhost:11434"),
+		KokoroURL:      getEnv("KOKORO_URL", "http://localhost:8880"),
+		ComfyUIURL:     getEnv("COMFYUI_URL", "http://localhost:8188"),
 		ReplicateToken: getEnv("REPLICATE_API_TOKEN", ""),
 		LogLevel:       parseLogLevel(getEnv("LOG_LEVEL", "info")),
 	}

@@ -36,3 +36,20 @@ export const PORT_COLORS: Record<PortType, string> = {
   json:         'var(--accent)',
   any:          'var(--text-muted)',
 };
+
+// ---------------------------------------------------------------------------
+// Human-readable labels for port types. Used by the hover-reveal port labels
+// on nodes so users see "image prompt" instead of "image_prompt" at a glance.
+// ---------------------------------------------------------------------------
+
+export const PORT_TYPE_LABEL: Record<PortType, string> = {
+  text:         'text',
+  image_prompt: 'image prompt',
+  video_prompt: 'video prompt',
+  audio_prompt: 'audio prompt',
+  image:        'image',
+  video:        'video',
+  audio:        'audio',
+  json:         'json',
+  any:          'any',
+};

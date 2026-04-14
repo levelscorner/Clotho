@@ -11,13 +11,29 @@
 /* Shared base ------------------------------------------------------------ */
 
 .clotho-node {
+  position: relative;
   min-width: 220px;
   border-radius: var(--radius-md);
   background: var(--surface-raised);
   border: 1px solid var(--surface-border);
   font-size: 13px;
-  overflow: hidden;
+  /* Allow the hover-X delete button and inline port labels to overflow the
+     rounded corners. Inner surfaces (header, body) retain their own radii. */
+  overflow: visible;
   transition: box-shadow var(--duration-normal) var(--ease-out);
+}
+
+/* When the node uses overflow: visible (so the hover-X and port labels can
+   escape), we have to clip inner surfaces to the node's rounded corners
+   ourselves. Header gets the top radii, footer gets the bottom. */
+.clotho-node .clotho-node__header {
+  border-top-left-radius: var(--radius-md);
+  border-top-right-radius: var(--radius-md);
+}
+
+.clotho-node .clotho-node__footer {
+  border-bottom-left-radius: var(--radius-md);
+  border-bottom-right-radius: var(--radius-md);
 }
 
 .clotho-node:hover {
@@ -27,6 +43,98 @@
 .clotho-node.selected {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* Hover-X delete button --------------------------------------------------- */
+
+.clotho-node__delete-btn {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--surface-overlay);
+  color: var(--text-secondary);
+  border: 1px solid var(--surface-border);
+  font-size: 12px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 150ms var(--ease-out),
+    background-color 150ms var(--ease-out),
+    color 150ms var(--ease-out),
+    border-color 150ms var(--ease-out);
+  z-index: 3;
+}
+
+.clotho-node__delete-btn span {
+  display: block;
+  transform: translateY(-0.5px);
+}
+
+.react-flow__node:hover .clotho-node__delete-btn,
+.clotho-node:hover .clotho-node__delete-btn {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.clotho-node__delete-btn:hover {
+  background: rgba(248, 113, 113, 0.12);
+  color: var(--status-failed);
+  border-color: var(--status-failed);
+}
+
+.clotho-node__delete-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Port labels — fade in on node hover ------------------------------------ */
+
+.clotho-port-label {
+  position: absolute;
+  transform: translateY(-50%);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.3px;
+  color: var(--text-muted);
+  background: var(--surface-overlay);
+  padding: 2px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms var(--ease-out);
+  z-index: 2;
+}
+
+.clotho-port-label--in {
+  left: 12px;
+}
+
+.clotho-port-label--out {
+  right: 12px;
+}
+
+.react-flow__node:hover .clotho-port-label,
+.clotho-node:hover .clotho-port-label {
+  opacity: 0.85;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .clotho-node__delete-btn,
+  .clotho-port-label {
+    transition: none;
+  }
 }
 
 /* Node header ------------------------------------------------------------- */

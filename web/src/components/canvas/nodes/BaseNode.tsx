@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import type { Port, ExecutionStatus } from '../../../lib/types';
-import { PORT_COLORS } from '../../../lib/portCompatibility';
+import { PORT_COLORS, PORT_TYPE_LABEL } from '../../../lib/portCompatibility';
 import { useExecutionStore } from '../../../stores/executionStore';
+import { usePipelineStore } from '../../../stores/pipelineStore';
 
 // ---------------------------------------------------------------------------
 // Props
@@ -15,6 +16,20 @@ interface BaseNodeProps {
   variant: 'agent' | 'tool' | 'media';
   selected?: boolean;
   className?: string;
+  /**
+   * Human-readable node label, used for the delete button's aria-label.
+   * Defaults to the node id if not provided, so legacy callers continue
+   * to work without a breaking change.
+   */
+  label?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function portTopPercent(index: number, total: number): string {
+  return `${((index + 1) / (total + 1)) * 100}%`;
 }
 
 // ---------------------------------------------------------------------------
@@ -28,6 +43,7 @@ function BaseNodeInner({
   variant,
   selected,
   className,
+  label,
 }: BaseNodeProps) {
   const stepResult = useExecutionStore((s) => s.stepResults.get(id));
   const status: ExecutionStatus | undefined = stepResult?.status;
@@ -39,41 +55,87 @@ function BaseNodeInner({
   const inputPorts = ports.filter((p) => p.direction === 'input');
   const outputPorts = ports.filter((p) => p.direction === 'output');
 
+  const handleDelete = useCallback(
+    (e: React.MouseEvent<HTMLButtonElement>) => {
+      e.stopPropagation();
+      e.preventDefault();
+      usePipelineStore.getState().removeNodes([id]);
+    },
+    [id],
+  );
+
+  const deleteLabel = `Delete node ${label ?? id}`;
+
   return (
     <div
       className={`clotho-node clotho-node--${variant}${statusClass}${selectedClass}${extraClass}`}
     >
-      {/* Input handles */}
-      {inputPorts.map((port, i) => (
-        <Handle
-          key={port.id}
-          id={port.id}
-          type="target"
-          position={Position.Left}
-          style={{
-            background: PORT_COLORS[port.type],
-            top: `${((i + 1) / (inputPorts.length + 1)) * 100}%`,
-          }}
-          title={`${port.name} (${port.type})`}
-        />
-      ))}
+      <button
+        type="button"
+        className="clotho-node__delete-btn"
+        aria-label={deleteLabel}
+        title={deleteLabel}
+        onClick={handleDelete}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <span aria-hidden="true">×</span>
+      </button>
+
+      {/* Input handles + hover labels */}
+      {inputPorts.map((port, i) => {
+        const top = portTopPercent(i, inputPorts.length);
+        const typeLabel = PORT_TYPE_LABEL[port.type] ?? port.type;
+        return (
+          <React.Fragment key={port.id}>
+            <Handle
+              id={port.id}
+              type="target"
+              position={Position.Left}
+              style={{
+                background: PORT_COLORS[port.type],
+                top,
+              }}
+              title={`${port.name} (${port.type})`}
+            />
+            <span
+              className="clotho-port-label clotho-port-label--in"
+              style={{ top }}
+              aria-hidden="true"
+            >
+              {port.name} · {typeLabel}
+            </span>
+          </React.Fragment>
+        );
+      })}
 
       {children}
 
-      {/* Output handles */}
-      {outputPorts.map((port, i) => (
-        <Handle
-          key={port.id}
-          id={port.id}
-          type="source"
-          position={Position.Right}
-          style={{
-            background: PORT_COLORS[port.type],
-            top: `${((i + 1) / (outputPorts.length + 1)) * 100}%`,
-          }}
-          title={`${port.name} (${port.type})`}
-        />
-      ))}
+      {/* Output handles + hover labels */}
+      {outputPorts.map((port, i) => {
+        const top = portTopPercent(i, outputPorts.length);
+        const typeLabel = PORT_TYPE_LABEL[port.type] ?? port.type;
+        return (
+          <React.Fragment key={port.id}>
+            <Handle
+              id={port.id}
+              type="source"
+              position={Position.Right}
+              style={{
+                background: PORT_COLORS[port.type],
+                top,
+              }}
+              title={`${port.name} (${port.type})`}
+            />
+            <span
+              className="clotho-port-label clotho-port-label--out"
+              style={{ top }}
+              aria-hidden="true"
+            >
+              {port.name} · {typeLabel}
+            </span>
+          </React.Fragment>
+        );
+      })}
     </div>
   );
 }

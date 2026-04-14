@@ -92,7 +92,16 @@ export function PipelineCanvas() {
   const onEdgesChange = usePipelineStore((s) => s.onEdgesChange);
   const onConnect = usePipelineStore((s) => s.onConnect);
   const addNode = usePipelineStore((s) => s.addNode);
+  const removeNodes = usePipelineStore((s) => s.removeNodes);
   const setSelectedNode = usePipelineStore((s) => s.setSelectedNode);
+
+  const onNodesDelete = useCallback(
+    (deleted: Node<PipelineNodeData>[]) => {
+      if (deleted.length === 0) return;
+      removeNodes(deleted.map((n) => n.id));
+    },
+    [removeNodes],
+  );
   const onViewportChange = usePipelineStore((s) => s.onViewportChange);
   const storedViewport = usePipelineStore((s) => s.viewport);
 
@@ -169,6 +178,8 @@ export function PipelineCanvas() {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onNodesDelete={onNodesDelete}
+        deleteKeyCode={['Backspace', 'Delete']}
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
         onMoveEnd={onMoveEnd}

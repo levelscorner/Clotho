@@ -229,6 +229,27 @@ export function AgentInspector({ nodeId, label, config, stepResult }: AgentInspe
         </div>
 
         <div style={fieldGroup}>
+          <label style={labelStyle}>Prompt</label>
+          <textarea
+            style={textareaStyle}
+            value={config.task.template}
+            onChange={(e) => updateTask({ template: e.target.value })}
+            placeholder="Use {{input}} to reference incoming data"
+          />
+          <div
+            style={{
+              marginTop: 4,
+              fontFamily:
+                'var(--font-mono, "JetBrains Mono", ui-monospace, monospace)',
+              fontSize: 10,
+              color: 'var(--text-muted)',
+            }}
+          >
+            Use {'{{input}}'} to reference incoming data.
+          </div>
+        </div>
+
+        <div style={fieldGroup}>
           <label style={labelStyle}>Persona</label>
           <input
             style={inputStyle}
@@ -397,15 +418,6 @@ export function AgentInspector({ nodeId, label, config, stepResult }: AgentInspe
           </datalist>
         </div>
 
-        <div style={fieldGroup}>
-          <label style={labelStyle}>Template</label>
-          <textarea
-            style={textareaStyle}
-            value={config.task.template}
-            onChange={(e) => updateTask({ template: e.target.value })}
-            placeholder="Use {{input}} to reference incoming data"
-          />
-        </div>
       </InspectorGroup>
     </div>
   );

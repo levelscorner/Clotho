@@ -4,6 +4,7 @@ import type { AgentNodeData, AgentNodeConfig } from '../../../lib/types';
 import { BaseNode } from './BaseNode';
 import { usePipelineStore } from '../../../stores/pipelineStore';
 import { useExecutionStore } from '../../../stores/executionStore';
+import { mapError } from '../../../lib/errorRemediation';
 
 // ---------------------------------------------------------------------------
 // Component
@@ -102,7 +103,7 @@ function AgentNodeInner({ id, data, selected }: NodeProps<AgentNodeType>) {
           ) : status === 'failed' ? (
             <>
               <div className="clotho-node__error">
-                {error || 'Execution failed'}
+                {mapError(error).summary}
               </div>
               <div className="clotho-node__error-actions">
                 <button

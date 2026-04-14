@@ -5,6 +5,7 @@ import { BaseNode } from './BaseNode';
 import { LOCAL_MEDIA_PROVIDERS } from '../../inspector/MediaInspector';
 import { usePipelineStore } from '../../../stores/pipelineStore';
 import { useExecutionStore } from '../../../stores/executionStore';
+import { mapError } from '../../../lib/errorRemediation';
 
 // ---------------------------------------------------------------------------
 // Media type icons & labels
@@ -181,7 +182,7 @@ function MediaNodeInner({ id, data, selected }: NodeProps<MediaNodeType>) {
         {status === 'failed' && (
           <>
             <div className="clotho-node__error">
-              {error || 'Execution failed'}
+              {mapError(error).summary}
             </div>
             <div className="clotho-node__error-actions">
               <button

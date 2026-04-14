@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { renderToStaticMarkup } from 'react-dom/server';
+import { render, cleanup } from '@testing-library/react';
 import { EmptyCanvasState } from '../EmptyCanvasState';
 import { usePipelineStore } from '../../../stores/pipelineStore';
 
@@ -35,11 +35,14 @@ function makeMemoryStorage(): StorageLike {
 }
 
 function resetPipelineStore(): void {
+  // pipelineId must be truthy for EmptyCanvasState to render — the component
+  // hides the ghost cluster when no pipeline is loaded at all, to avoid
+  // flashing it during the initial "nothing selected yet" boot window.
   usePipelineStore.setState({
     nodes: [],
     edges: [],
     viewport: { x: 0, y: 0, zoom: 1 },
-    pipelineId: null,
+    pipelineId: 'test-pipeline-00000000',
     pipelineName: 'Untitled Pipeline',
     isDirty: false,
     selectedNodeId: null,
@@ -48,28 +51,39 @@ function resetPipelineStore(): void {
 
 describe('EmptyCanvasState', () => {
   beforeEach(() => {
+    // Always install a fresh in-memory localStorage on globalThis. The
+    // component reads via `getStorage()` → `globalThis.localStorage`. We
+    // stub here because other test files may have mutated `localStorage`
+    // via `vi.stubGlobal` without cleaning up, leaving a non-functional
+    // shell on later test runs.
     vi.stubGlobal('localStorage', makeMemoryStorage());
     resetPipelineStore();
   });
 
   afterEach(() => {
+    cleanup();
     vi.unstubAllGlobals();
   });
 
   it('renders when pipeline has zero nodes and key is not dismissed', () => {
-    const html = renderToStaticMarkup(<EmptyCanvasState />);
-    expect(html).toContain('LOAD SAMPLE PIPELINE');
-    expect(html).toContain('empty-canvas__cluster');
-    expect(html).toContain('Script Writer');
+    const { container } = render(<EmptyCanvasState />);
+    expect(container.innerHTML).toContain('LOAD SAMPLE PIPELINE');
+    expect(container.innerHTML).toContain('empty-canvas__cluster');
+    expect(container.innerHTML).toContain('Script Writer');
   });
 
-  it('renders nothing when dismiss key is present in localStorage', () => {
-    (globalThis as unknown as { localStorage: StorageLike }).localStorage.setItem(
-      'clotho.empty-state.dismissed',
-      '1',
-    );
-    const html = renderToStaticMarkup(<EmptyCanvasState />);
-    expect(html).toBe('');
+  it('clears a stale dismiss flag when the pipeline is empty on mount', () => {
+    // Deliberate design: an empty pipeline means the user needs onboarding,
+    // so the component resets the dismissal flag even when it's set. This
+    // prevents the empty state from being permanently hidden after a
+    // previous session dismissed it.
+    const storage = (globalThis as unknown as { localStorage: StorageLike })
+      .localStorage;
+    storage.setItem('clotho.empty-state.dismissed', '1');
+    const { container } = render(<EmptyCanvasState />);
+    expect(container.innerHTML).toContain('LOAD SAMPLE PIPELINE');
+    // The stale flag has been cleared.
+    expect(storage.getItem('clotho.empty-state.dismissed')).toBeNull();
   });
 
   // Note: verifying the "hide when nodes exist" guard via direct store read.
@@ -104,14 +118,14 @@ describe('EmptyCanvasState', () => {
   });
 
   it('shows the corner template hint', () => {
-    const html = renderToStaticMarkup(<EmptyCanvasState />);
-    expect(html).toContain('⌘K');
+    const { container } = render(<EmptyCanvasState />);
+    expect(container.innerHTML).toContain('⌘K');
   });
 
   it('includes three ghost nodes with distinct body variants', () => {
-    const html = renderToStaticMarkup(<EmptyCanvasState />);
-    expect(html).toContain('empty-canvas__ghost-body--script');
-    expect(html).toContain('empty-canvas__ghost-body--matte');
-    expect(html).toContain('empty-canvas__ghost-body--reel');
+    const { container } = render(<EmptyCanvasState />);
+    expect(container.innerHTML).toContain('empty-canvas__ghost-body--script');
+    expect(container.innerHTML).toContain('empty-canvas__ghost-body--matte');
+    expect(container.innerHTML).toContain('empty-canvas__ghost-body--reel');
   });
 });

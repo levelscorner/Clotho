@@ -1,5 +1,6 @@
 import type { StepResult, ExecutionStatus } from '../../lib/types';
 import { InspectorGroup } from './InspectorGroup';
+import { mapError } from '../../lib/errorRemediation';
 
 // ---------------------------------------------------------------------------
 // Status badge colours
@@ -15,6 +16,26 @@ const STATUS_COLORS: Record<ExecutionStatus, string> = {
 };
 
 // ---------------------------------------------------------------------------
+// Byte formatter — turns output.length into "1.1 MB" / "12 KB" / "320 B".
+// ---------------------------------------------------------------------------
+
+const KB = 1024;
+const MB = KB * 1024;
+
+function formatBytes(n: number): string {
+  if (n < KB) return `${n} B`;
+  if (n < MB) return `${(n / KB).toFixed(1)} KB`;
+  return `${(n / MB).toFixed(1)} MB`;
+}
+
+// Only show a size hint when the output is meaningfully large (>= 1 KB) —
+// a 200 B prompt answer doesn't need a size annotation in the title.
+function outputSizeHint(output: string | undefined): string {
+  if (!output || output.length < KB) return '';
+  return ` (${formatBytes(output.length)})`;
+}
+
+// ---------------------------------------------------------------------------
 // Props
 // ---------------------------------------------------------------------------
 
@@ -28,6 +49,8 @@ interface ExecutionInspectorProps {
 
 export function ExecutionInspector({ step }: ExecutionInspectorProps) {
   const hasDetails = Boolean(step.output || step.error);
+  const sizeHint = outputSizeHint(step.output);
+  const remediation = step.error ? mapError(step.error) : null;
 
   return (
     <div style={{ fontSize: 13 }}>
@@ -71,47 +94,61 @@ export function ExecutionInspector({ step }: ExecutionInspectorProps) {
         <InspectorGroup title="Details" forceOpen={Boolean(step.error)}>
           {step.output && (
             <div style={{ marginBottom: 10 }}>
-              <div
-                style={{
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: '#64748b',
-                  marginBottom: 4,
-                  textTransform: 'uppercase',
-                }}
+              {/* A5 — the Output group defaults closed so a 1 MB base64 blob
+                  doesn't flatten the inspector. Errors auto-expand it. */}
+              <InspectorGroup
+                title={`Model Output${sizeHint}`}
+                defaultOpen={false}
+                forceOpen={Boolean(step.error)}
               >
-                Output
-              </div>
-              <OutputPreview output={step.output} />
+                <OutputPreview output={step.output} />
+              </InspectorGroup>
             </div>
           )}
 
-          {step.error && (
-            <div style={{ marginBottom: 10 }}>
-              <div
-                style={{
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: '#ef4444',
-                  marginBottom: 4,
-                  textTransform: 'uppercase',
-                }}
-              >
-                Error
-              </div>
-              <pre
-                style={{
-                  background: '#1a1c2e',
-                  padding: 8,
-                  borderRadius: 4,
-                  whiteSpace: 'pre-wrap',
-                  color: '#fca5a5',
-                  fontSize: 12,
-                  border: '1px solid #7f1d1d',
-                }}
-              >
-                {step.error}
-              </pre>
+          {step.error && remediation && (
+            <div
+              role="alert"
+              style={{
+                marginBottom: 10,
+                padding: 10,
+                borderRadius: 4,
+                background: 'rgba(127, 29, 29, 0.25)',
+                border: '1px solid #7f1d1d',
+              }}
+            >
+              <div className="clotho-error-summary">{remediation.summary}</div>
+              <div className="clotho-error-hint">{remediation.hint}</div>
+              <details style={{ marginTop: 8 }}>
+                <summary
+                  style={{
+                    cursor: 'pointer',
+                    fontSize: 11,
+                    color: '#94a3b8',
+                    textTransform: 'uppercase',
+                    letterSpacing: 0.3,
+                  }}
+                >
+                  Raw error
+                </summary>
+                <pre
+                  style={{
+                    marginTop: 6,
+                    background: '#1a1c2e',
+                    padding: 8,
+                    borderRadius: 4,
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                    color: '#fca5a5',
+                    fontSize: 12,
+                    border: '1px solid #7f1d1d',
+                    maxHeight: 240,
+                    overflow: 'auto',
+                  }}
+                >
+                  {step.error}
+                </pre>
+              </details>
             </div>
           )}
         </InspectorGroup>

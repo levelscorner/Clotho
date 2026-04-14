@@ -1,0 +1,28 @@
+/*
+ * UnauthChip — small warm-amber pill anchored in the top bar next to the
+ * Clotho wordmark. JetBrains Mono, uppercase, warm-amber-soft background,
+ * warm-amber text + border. 10px type with 1px letter-spacing for the
+ * "system badge" feel. Tokens only — no hex literals.
+ */
+
+.unauth-chip {
+  display: inline-flex;
+  align-items: center;
+
+  padding: 3px 8px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm, 4px);
+  background: var(--accent-soft);
+  color: var(--accent);
+
+  font-family: var(--font-mono, 'JetBrains Mono', ui-monospace, monospace);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  line-height: 1;
+
+  user-select: none;
+  white-space: nowrap;
+  cursor: help;
+}

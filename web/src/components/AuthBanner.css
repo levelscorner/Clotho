@@ -13,20 +13,66 @@
   width: 100%;
   z-index: 10000;
 
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
 
-  background: #f87171;
+  background: var(--status-failed, #f87171);
   color: #ffffff;
 
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: var(--font-body, 'Inter', system-ui, -apple-system, sans-serif);
   font-weight: 600;
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 1.4px;
 
   user-select: none;
+}
+
+.auth-banner__message {
+  /* Leave room on the right for the close button without using padding on the
+   * parent (keeps text centred). */
+  padding-right: 32px;
+}
+
+.auth-banner__close {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  background: transparent;
+  border: 0;
+  padding: 0;
+
+  color: #ffffff;
+  font-family: var(--font-body, 'Inter', system-ui, -apple-system, sans-serif);
+  font-size: 18px;
+  line-height: 1;
+
+  border-radius: var(--radius-sm, 4px);
+  cursor: pointer;
+
+  transition: background-color 150ms ease;
+}
+
+.auth-banner__close:hover,
+.auth-banner__close:focus-visible {
+  background: rgba(255, 255, 255, 0.18);
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-banner__close {
+    transition: none;
+  }
 }
 
 /* Wrapper that stacks the banner above AppContent. AppContent already fills

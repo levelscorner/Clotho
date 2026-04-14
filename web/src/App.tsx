@@ -13,6 +13,7 @@ import { VersionPanel } from './components/versioning/VersionPanel';
 import { LoginPage } from './components/auth/LoginPage';
 import { RegisterPage } from './components/auth/RegisterPage';
 import { AuthBanner } from './components/AuthBanner';
+import { UnauthChip } from './components/UnauthChip';
 import { SettingsPanel } from './components/settings/SettingsPanel';
 import { TemplateGallery } from './components/templates/TemplateGallery';
 import { useProjectStore } from './stores/projectStore';
@@ -274,6 +275,7 @@ function AppContent() {
         >
           Clotho
         </span>
+        <UnauthChip />
 
         {currentProjectId && (
           <select

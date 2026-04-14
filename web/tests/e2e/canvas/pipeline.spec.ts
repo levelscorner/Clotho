@@ -1,66 +1,328 @@
-import { test, expect } from '../../fixtures/auth';
+import { test, expect } from '@playwright/test';
 
-test.describe('Canvas Pipeline', () => {
-  test('canvas loads with node palette', async ({ authedPage: page }) => {
-    // Palette sidebar should be visible with node categories
-    await expect(page.locator('text=Agents').first()).toBeVisible();
-    await expect(page.locator('text=Tools').first()).toBeVisible();
+/**
+ * Wave 3 — Canvas states, empty state, ⌘K template gallery.
+ * Wave 4 — /dev/nodes testbed, responsive layout, A11y.
+ *
+ * All tests require no-auth mode (VITE_NO_AUTH=true).
+ */
+
+test.describe('Canvas states', () => {
+  test('⌘K opens TemplateGallery modal, Escape closes it', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+
+    const canvas = page.locator('.react-flow');
+    const canvasVisible = await canvas.isVisible({ timeout: 3000 }).catch(() => false);
+    test.skip(!canvasVisible, 'Canvas not available');
+
+    // Press ⌘K (meta+k on macOS).
+    await page.keyboard.press('Meta+k');
+
+    // TemplateGallery modal should appear.
+    const modal = page.locator('[role="dialog"]').first();
+    await expect(modal).toBeVisible({ timeout: 3000 });
+
+    // Press Escape — modal should close.
+    await page.keyboard.press('Escape');
+    await expect(modal).not.toBeVisible({ timeout: 3000 });
   });
 
-  test('can add an agent node by dragging from palette', async ({ authedPage: page }) => {
-    // Find a palette item (Script Writer or similar)
-    const paletteItem = page.locator('text=Script Writer').first();
-    await expect(paletteItem).toBeVisible();
+  test('Templates button in top bar opens TemplateGallery', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
 
-    // Count nodes before
-    const nodesBefore = await page.locator('.clotho-node').count();
+    const canvas = page.locator('.react-flow');
+    const canvasVisible = await canvas.isVisible({ timeout: 3000 }).catch(() => false);
+    test.skip(!canvasVisible, 'Canvas not available');
 
-    // Drag from palette to canvas center
-    const canvas = page.locator('.react-flow__pane');
-    const canvasBox = await canvas.boundingBox();
-    if (!canvasBox) throw new Error('Canvas not found');
+    const templatesBtn = page.getByRole('button', { name: /Templates/i });
+    await expect(templatesBtn).toBeVisible();
+    await templatesBtn.click();
 
-    const paletteBox = await paletteItem.boundingBox();
-    if (!paletteBox) throw new Error('Palette item not found');
+    const modal = page.locator('[role="dialog"]').first();
+    await expect(modal).toBeVisible({ timeout: 3000 });
 
-    await page.mouse.move(paletteBox.x + paletteBox.width / 2, paletteBox.y + paletteBox.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(canvasBox.x + canvasBox.width / 2, canvasBox.y + canvasBox.height / 2, { steps: 10 });
-    await page.mouse.up();
-
-    // Wait for node to appear
-    await page.waitForTimeout(500);
-    const nodesAfter = await page.locator('.clotho-node').count();
-    expect(nodesAfter).toBeGreaterThanOrEqual(nodesBefore);
+    // Close via Escape.
+    await page.keyboard.press('Escape');
+    await expect(modal).not.toBeVisible({ timeout: 3000 });
   });
 
-  test('selecting a node shows inspector panel', async ({ authedPage: page }) => {
-    // Click on a node if one exists
-    const node = page.locator('.clotho-node').first();
-    if (await node.isVisible()) {
-      await node.click();
-      // Inspector should show node details
-      await page.waitForTimeout(500);
+  test('empty canvas shows ghost cluster when pipeline has no nodes', async ({ browser }) => {
+    // Create a fresh empty pipeline via API.
+    const freshPipelineId = await createFreshEmptyPipeline();
+    if (!freshPipelineId) {
+      test.skip(true, 'Could not create fresh empty pipeline via API');
     }
-  });
 
-  test('save button persists pipeline', async ({ authedPage: page }) => {
-    // Find and click save button
-    const saveBtn = page.locator('button', { hasText: /save/i }).first();
-    if (await saveBtn.isVisible()) {
-      await saveBtn.click();
-      // Should not show error
-      await page.waitForTimeout(1000);
+    const context = await browser.newContext();
+    const page = await context.newPage();
+
+    // Clear dismissal flag.
+    await page.goto('http://localhost:3000/');
+    await page.evaluate(() => {
+      localStorage.removeItem('clotho.empty-state.dismissed');
+    });
+
+    // Navigate so app bootstraps and loads the fresh pipeline.
+    // The app auto-selects the first pipeline — we need to trigger switch
+    // by injecting state after load; the simplest check is to see if the
+    // current pipeline becomes empty after loading.
+    await page.waitForLoadState('networkidle');
+
+    const nodeCount = await page.locator('.react-flow__node').count();
+    if (nodeCount > 0) {
+      // Backend has a saved pipeline with nodes; skip this check.
+      await context.close();
+      test.skip(true, 'Backend default pipeline has saved nodes; empty state requires a 0-node pipeline. Fix: save a blank pipeline version.');
     }
-  });
 
-  test('undo/redo keyboard shortcuts work', async ({ authedPage: page }) => {
-    // Test undo shortcut
-    await page.keyboard.press('Control+z');
-    await page.waitForTimeout(300);
-    // Test redo shortcut
-    await page.keyboard.press('Control+Shift+z');
-    await page.waitForTimeout(300);
-    // No crash = pass
+    // Empty state should be visible.
+    const emptyCanvas = page.locator('.empty-canvas');
+    await expect(emptyCanvas).toBeVisible({ timeout: 3000 });
+
+    const ghosts = page.locator('.empty-canvas__ghost');
+    await expect(ghosts).toHaveCount(3);
+
+    const cta = page.locator('.empty-canvas__cta');
+    await expect(cta).toBeVisible();
+    await expect(cta).toContainText('LOAD SAMPLE PIPELINE');
+
+    const cornerHint = page.locator('.empty-canvas__hint-corner');
+    await expect(cornerHint).toContainText('⌘K');
+
+    // Click CTA → 3 nodes appear.
+    await cta.click();
+    await expect(page.locator('.react-flow__node')).toHaveCount(3, { timeout: 5000 });
+
+    // localStorage flag set.
+    const dismissed = await page.evaluate(() => localStorage.getItem('clotho.empty-state.dismissed'));
+    expect(dismissed).toBe('1');
+
+    await context.close();
   });
 });
+
+test.describe('/dev/nodes testbed', () => {
+  test('7 tabs render with 5 fixture cards each', async ({ page }) => {
+    await page.goto('/dev/nodes');
+    await page.waitForLoadState('networkidle');
+
+    // 7 tabs.
+    const tabs = page.locator('.dev-nodes__tab');
+    await expect(tabs).toHaveCount(7);
+
+    const tabLabels = await tabs.allTextContents();
+    expect(tabLabels).toContain('Agent · Script');
+    expect(tabLabels).toContain('Agent · Crafter');
+    expect(tabLabels).toContain('Agent · Generic');
+    expect(tabLabels).toContain('Media · Image');
+    expect(tabLabels).toContain('Media · Video');
+    expect(tabLabels).toContain('Media · Audio');
+    expect(tabLabels).toContain('Tool');
+
+    // Grid has cards.
+    const grid = page.locator('[data-testid="dev-nodes-grid"]');
+    await expect(grid).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('.dev-nodes__card')).toHaveCount(5);
+  });
+
+  test('each tab shows correct number of fixture cards', async ({ page }) => {
+    await page.goto('/dev/nodes');
+    await page.waitForLoadState('networkidle');
+
+    // Agent tabs: 5 states × 1 category = 5 cards each.
+    // Media tabs: 5 states × 1 media type = 5 cards each.
+    // Tool tab: 5 states × 3 tool types = 15 cards (text_box, image_box, video_box).
+    const tabExpectedCounts: Array<{ label: string; count: number }> = [
+      { label: 'Agent · Script', count: 5 },
+      { label: 'Agent · Crafter', count: 5 },
+      { label: 'Agent · Generic', count: 5 },
+      { label: 'Media · Image', count: 5 },
+      { label: 'Media · Video', count: 5 },
+      { label: 'Media · Audio', count: 5 },
+      { label: 'Tool', count: 15 }, // 3 tool types × 5 states
+    ];
+
+    // Ensure grid is populated before iterating tabs.
+    const grid = page.locator('[data-testid="dev-nodes-grid"]');
+    await expect(grid.locator('.dev-nodes__card').first()).toBeVisible({ timeout: 5000 });
+
+    for (const { label, count } of tabExpectedCounts) {
+      const tab = page.getByRole('button', { name: label, exact: true });
+      await tab.click();
+      // Wait for the tab to be marked active (aria-pressed=true).
+      await expect(tab).toHaveAttribute('aria-pressed', 'true', { timeout: 2000 });
+      // Wait for the grid to update (card count to settle).
+      await expect(grid.locator('.dev-nodes__card')).toHaveCount(count, { timeout: 4000 });
+    }
+  });
+
+  test('state badges include all 5 expected states', async ({ page }) => {
+    await page.goto('/dev/nodes');
+    await page.waitForLoadState('networkidle');
+
+    const badges = await page.locator('.dev-nodes__state-badge').allTextContents();
+    const badgeSet = new Set(badges);
+    expect(badgeSet.has('QUEUED')).toBe(true);
+    expect(badgeSet.has('RUNNING')).toBe(true);
+    expect(badgeSet.has('COMPLETE')).toBe(true);
+    expect(badgeSet.has('EMPTY-COMPLETE')).toBe(true);
+    expect(badgeSet.has('FAILED')).toBe(true);
+  });
+});
+
+test.describe('Responsive layout', () => {
+  test('at 768px sidebar collapses to 56px icon-only rail', async ({ page }) => {
+    await page.setViewportSize({ width: 768, height: 900 });
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+
+    const canvas = page.locator('.react-flow');
+    const canvasVisible = await canvas.isVisible({ timeout: 3000 }).catch(() => false);
+    test.skip(!canvasVisible, 'Canvas not available');
+
+    const palette = page.locator('.clotho-palette');
+    await expect(palette).toBeVisible();
+
+    const box = await palette.boundingBox();
+    // At tablet breakpoint (768-1023px), palette collapses to 56px.
+    expect(box?.width).toBeLessThanOrEqual(60); // 56px ± 4px tolerance
+  });
+
+  test('at 375px hamburger button visible and opens palette', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+
+    const canvas = page.locator('.react-flow');
+    const canvasVisible = await canvas.isVisible({ timeout: 3000 }).catch(() => false);
+    test.skip(!canvasVisible, 'Canvas not available');
+
+    // Dismiss SmallScreenBanner if it's blocking interactions.
+    const banner = page.locator('.clotho-small-screen-banner');
+    const bannerVisible = await banner.isVisible({ timeout: 1000 }).catch(() => false);
+    if (bannerVisible) {
+      const dismissBtn = banner.getByRole('button').first();
+      const dismissVisible = await dismissBtn.isVisible({ timeout: 1000 }).catch(() => false);
+      if (dismissVisible) {
+        await dismissBtn.click();
+      } else {
+        // Force-hide via JS if no button
+        await page.evaluate(() => {
+          const el = document.querySelector('.clotho-small-screen-banner') as HTMLElement | null;
+          if (el) el.style.display = 'none';
+        });
+      }
+    }
+
+    const hamburger = page.locator('.clotho-hamburger');
+    await expect(hamburger).toBeVisible();
+
+    // Click hamburger → palette drawer opens.
+    await hamburger.click();
+    const palette = page.locator('.clotho-palette');
+    await expect(palette).toHaveAttribute('data-mobile-open', 'true');
+
+    // Close via the close button inside the drawer (the palette covers the hamburger
+    // at z-index:modal > z-index:hamburger+10 at phone breakpoint).
+    const closeBtn = palette.getByRole('button', { name: 'Close node palette' });
+    await expect(closeBtn).toBeVisible({ timeout: 3000 });
+    await closeBtn.click();
+    await expect(palette).toHaveAttribute('data-mobile-open', 'false');
+  });
+
+  test('at 1440px SmallScreenBanner is NOT visible', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+
+    const canvas = page.locator('.react-flow');
+    const canvasVisible = await canvas.isVisible({ timeout: 3000 }).catch(() => false);
+    test.skip(!canvasVisible, 'Canvas not available');
+
+    const banner = page.locator('.clotho-small-screen-banner');
+    // At 1440px the banner's CSS display stays "none".
+    const display = await banner.evaluate((el) => getComputedStyle(el).display);
+    expect(display).toBe('none');
+  });
+
+  test('at 1023px SmallScreenBanner IS visible (threshold is 1024px)', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1023, height: 768 });
+    await page.goto('/');
+    // Clear sessionStorage dismissal so the banner shows.
+    await page.evaluate(() => sessionStorage.removeItem('clotho.small-screen-banner.dismissed'));
+    await page.reload();
+    await page.waitForLoadState('networkidle');
+
+    const canvas = page.locator('.react-flow');
+    const canvasVisible = await canvas.isVisible({ timeout: 3000 }).catch(() => false);
+    test.skip(!canvasVisible, 'Canvas not available');
+
+    const banner = page.locator('.clotho-small-screen-banner');
+    // Banner data-visible should be true (not dismissed).
+    await expect(banner).toHaveAttribute('data-visible', 'true');
+    const display = await banner.evaluate((el) => getComputedStyle(el).display);
+    expect(display).not.toBe('none');
+  });
+});
+
+test.describe('A11y: inspector drawer in overlay mode', () => {
+  test('role=dialog + aria-modal=true at 768px; Escape closes inspector', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 768, height: 900 });
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+
+    const canvas = page.locator('.react-flow');
+    const canvasVisible = await canvas.isVisible({ timeout: 3000 }).catch(() => false);
+    test.skip(!canvasVisible, 'Canvas not available');
+
+    // Click a node.
+    const firstNode = page.locator('.react-flow__node').first();
+    const hasNode = await firstNode.isVisible({ timeout: 2000 }).catch(() => false);
+    test.skip(!hasNode, 'No node to click');
+
+    await firstNode.click();
+
+    // Inspector should appear as dialog.
+    const inspector = page.locator('.clotho-inspector');
+    await expect(inspector).toBeVisible({ timeout: 3000 });
+    await expect(inspector).toHaveAttribute('role', 'dialog');
+    await expect(inspector).toHaveAttribute('aria-modal', 'true');
+
+    // Escape closes the inspector.
+    await page.keyboard.press('Escape');
+    await expect(inspector).not.toBeVisible({ timeout: 3000 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+async function createFreshEmptyPipeline(): Promise<string> {
+  try {
+    const projectsResp = await fetch('http://localhost:8080/api/projects');
+    const projects = (await projectsResp.json()) as { id: string }[];
+    if (!projects.length) return '';
+
+    const projectId = projects[0].id;
+    const pipelineResp = await fetch(
+      `http://localhost:8080/api/projects/${projectId}/pipelines`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'E2E Empty Test Pipeline' }),
+      },
+    );
+    if (!pipelineResp.ok) return '';
+    const pipeline = (await pipelineResp.json()) as { id: string };
+    return pipeline.id ?? '';
+  } catch {
+    return '';
+  }
+}

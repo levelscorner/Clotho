@@ -3,6 +3,8 @@ package config
 import (
 	"log/slog"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -150,7 +152,7 @@ func TestValidate_NoAuthProdMarkers(t *testing.T) {
 				defer os.Unsetenv(tt.envKey)
 			}
 
-			cfg := &Config{NoAuth: true, AcknowledgeNoAuth: true}
+			cfg := &Config{NoAuth: true, AcknowledgeNoAuth: true, DataDir: "/tmp/clotho-test"}
 			err := cfg.Validate()
 			if tt.wantErr && err == nil {
 				t.Fatalf("expected error, got nil")
@@ -172,7 +174,7 @@ func TestValidate_NoAuthRequiresAcknowledge(t *testing.T) {
 		}
 	}
 
-	cfg := &Config{NoAuth: true, AcknowledgeNoAuth: false}
+	cfg := &Config{NoAuth: true, AcknowledgeNoAuth: false, DataDir: "/tmp/clotho-test"}
 	if err := cfg.Validate(); err == nil {
 		t.Fatal("expected error when NoAuth=true but AcknowledgeNoAuth=false, got nil")
 	}
@@ -183,9 +185,70 @@ func TestValidate_NoAuthDisabled(t *testing.T) {
 	os.Setenv("NODE_ENV", "production")
 	defer os.Unsetenv("NODE_ENV")
 
-	cfg := &Config{NoAuth: false}
+	cfg := &Config{NoAuth: false, DataDir: "/tmp/clotho-test"}
 	if err := cfg.Validate(); err != nil {
 		t.Fatalf("unexpected error with NoAuth=false: %v", err)
+	}
+}
+
+func TestLoad_DataDirDefault(t *testing.T) {
+	orig, exists := os.LookupEnv("CLOTHO_DATA_DIR")
+	os.Unsetenv("CLOTHO_DATA_DIR")
+	defer func() {
+		if exists {
+			os.Setenv("CLOTHO_DATA_DIR", orig)
+		} else {
+			os.Unsetenv("CLOTHO_DATA_DIR")
+		}
+	}()
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Default should end with Documents/Clotho unless HOME is unresolvable,
+	// in which case we fall back to ./clotho-data.
+	if cfg.DataDir == "" {
+		t.Fatal("DataDir is empty; expected a non-empty default")
+	}
+
+	expectedSuffix := filepath.Join("Documents", "Clotho")
+	fallback := filepath.Join(".", "clotho-data")
+	if !strings.HasSuffix(cfg.DataDir, expectedSuffix) && cfg.DataDir != fallback {
+		t.Errorf("DataDir = %q, want suffix %q or fallback %q", cfg.DataDir, expectedSuffix, fallback)
+	}
+}
+
+func TestLoad_DataDirEnvOverride(t *testing.T) {
+	orig, exists := os.LookupEnv("CLOTHO_DATA_DIR")
+	os.Setenv("CLOTHO_DATA_DIR", "/tmp/myclotho")
+	defer func() {
+		if exists {
+			os.Setenv("CLOTHO_DATA_DIR", orig)
+		} else {
+			os.Unsetenv("CLOTHO_DATA_DIR")
+		}
+	}()
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if cfg.DataDir != "/tmp/myclotho" {
+		t.Errorf("DataDir = %q, want %q", cfg.DataDir, "/tmp/myclotho")
+	}
+}
+
+func TestValidate_EmptyDataDirRejected(t *testing.T) {
+	cfg := &Config{DataDir: ""}
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("expected error for empty DataDir, got nil")
+	}
+	if !strings.Contains(err.Error(), "DataDir") {
+		t.Errorf("error = %q, want mention of DataDir", err.Error())
 	}
 }
 

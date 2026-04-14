@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -27,6 +28,11 @@ type Config struct {
 	MasterKey     string        // hex-encoded 32-byte envelope encryption master key
 	AdminPassword string        // admin user password (from ADMIN_PASSWORD env var)
 
+	// DataDir is the root directory for on-disk pipeline outputs; honours
+	// CLOTHO_DATA_DIR. Defaults to "$HOME/Documents/Clotho" on all platforms.
+	// When the home directory cannot be resolved, falls back to "./clotho-data".
+	DataDir string
+
 	// NoAuth enables local-dev authentication bypass when true.
 	// Requires AcknowledgeNoAuth to also be true (fail-closed).
 	NoAuth            bool
@@ -47,6 +53,10 @@ var prodMarkers = []string{
 // In particular, it ensures NoAuth cannot accidentally be enabled in a
 // production environment.
 func (c *Config) Validate() error {
+	if c.DataDir == "" {
+		return fmt.Errorf("DataDir must be set (CLOTHO_DATA_DIR or default)")
+	}
+
 	if !c.NoAuth {
 		return nil
 	}
@@ -105,6 +115,15 @@ func Load() (*Config, error) {
 	// Admin password
 	cfg.AdminPassword = getEnv("ADMIN_PASSWORD", "clotho123")
 
+	// Data directory for on-disk pipeline outputs.
+	defaultDataDir, err := defaultUserDataDir()
+	if err != nil || defaultDataDir == "" {
+		// Fallback to a working-directory subdir if HOME can't be resolved.
+		defaultDataDir = filepath.Join(".", "clotho-data")
+		slog.Warn("could not resolve user home directory; falling back to ./clotho-data for CLOTHO_DATA_DIR")
+	}
+	cfg.DataDir = getEnv("CLOTHO_DATA_DIR", defaultDataDir)
+
 	// Auth bypass (local-dev only; fail-closed via Validate)
 	cfg.NoAuth = isTruthy(getEnv("NO_AUTH", ""))
 	cfg.AcknowledgeNoAuth = isTruthy(getEnv("CLOTHO_ACKNOWLEDGE_NO_AUTH", ""))
@@ -154,6 +173,20 @@ func parseDuration(s string, fallback time.Duration) time.Duration {
 		return fallback
 	}
 	return d
+}
+
+// defaultUserDataDir returns "$HOME/Documents/Clotho" on all platforms. When
+// the home directory cannot be resolved it returns "" and a non-nil error so
+// the caller can pick a working-directory fallback.
+func defaultUserDataDir() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	if home == "" {
+		return "", fmt.Errorf("user home directory is empty")
+	}
+	return filepath.Join(home, "Documents", "Clotho"), nil
 }
 
 func parseLogLevel(s string) slog.Level {

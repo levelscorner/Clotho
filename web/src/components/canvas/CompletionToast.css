@@ -1,0 +1,90 @@
+/* ---------------------------------------------------------------------------
+   Completion toast · amber stats chip in bottom-right.
+   Variant 3B remix from docs/design-refs/canvas-states.html.
+   --------------------------------------------------------------------------- */
+
+.completion-toast {
+  position: absolute;
+  right: 24px;
+  bottom: 24px;
+  width: 220px;
+  background: var(--surface-overlay);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: var(--z-overlay);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  animation: completion-toast-in 240ms var(--ease-out) both;
+}
+
+@keyframes completion-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .completion-toast {
+    animation: none;
+  }
+}
+
+.completion-toast__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: var(--space-xs);
+}
+
+.completion-toast__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.completion-toast__label {
+  font-family: var(--font-body);
+  font-size: 7px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+.completion-toast__value {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.completion-toast__cta {
+  width: 100%;
+  background: var(--accent);
+  color: var(--surface-raised);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  padding: 5px;
+  border-radius: 4px;
+  border: 0;
+  cursor: pointer;
+  text-transform: uppercase;
+  text-align: center;
+  transition: filter var(--duration-fast) var(--ease-out);
+}
+
+.completion-toast__cta:hover {
+  filter: brightness(1.08);
+}

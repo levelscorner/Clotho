@@ -1,0 +1,80 @@
+/* ---------------------------------------------------------------------------
+   Node execution/selection state styles — Wave 3.
+
+   Three states layered on top of the base node styles:
+     - .clotho-node--failed              node execution failed
+     - .clotho-node--blocked             downstream of a failed node
+     - .clotho-node--completion-pulse    cascaded celebration pulse on success
+
+   Tokens only. No magic values. Respects prefers-reduced-motion.
+   --------------------------------------------------------------------------- */
+
+/* =========================
+   Failed state · 2B header stripe
+   ========================= */
+
+.clotho-node--failed .clotho-node__header {
+  background: var(--status-failed);
+  color: #ffffff;
+}
+
+.clotho-node--failed .clotho-node__title,
+.clotho-node--failed .clotho-node__subtitle,
+.clotho-node--failed .clotho-node__icon {
+  color: #ffffff;
+}
+
+/* Keep the body material intact (agent-script paper, media matte/reel/scope).
+   Error surfaces are handled by the per-node error body that AgentNode /
+   MediaNode already render when stepResult.status === 'failed'. */
+
+/* =========================
+   Blocked state · 55% opacity, red-tinged border
+   ========================= */
+
+.clotho-node--blocked,
+.react-flow__node.clotho-node-blocked .clotho-node {
+  opacity: 0.55;
+  border-color: rgba(248, 113, 113, 0.3);
+}
+
+.clotho-node--blocked .clotho-node__title::after,
+.react-flow__node.clotho-node-blocked .clotho-node__title::after {
+  content: ' · blocked';
+  color: var(--status-failed);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.4px;
+  margin-left: var(--space-xs);
+  opacity: 0.8;
+}
+
+/* =========================
+   Completion pulse · amber glow cascade
+   ========================= */
+
+@keyframes clotho-completion-glow {
+  0% {
+    border-color: var(--surface-border);
+    box-shadow: none;
+  }
+  50% {
+    border-color: var(--accent);
+    box-shadow: 0 0 12px var(--accent-glow), 0 0 2px var(--accent-glow);
+  }
+  100% {
+    border-color: var(--surface-border);
+    box-shadow: none;
+  }
+}
+
+.clotho-node--completion-pulse {
+  animation: clotho-completion-glow 400ms var(--ease-out) both;
+  animation-delay: var(--pulse-delay, 0ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .clotho-node--completion-pulse {
+    animation: none;
+  }
+}

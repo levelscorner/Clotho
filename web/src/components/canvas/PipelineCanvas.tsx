@@ -16,9 +16,15 @@ import type {
   NodeType,
 } from '../../lib/types';
 import { usePipelineStore } from '../../stores/pipelineStore';
+import {
+  useExecutionStore,
+  computeBlockedNodeIds,
+} from '../../stores/executionStore';
 import { AgentNode } from './nodes/AgentNode';
 import { ToolNode } from './nodes/ToolNode';
 import { MediaNode } from './nodes/MediaNode';
+import { EmptyCanvasState } from './EmptyCanvasState';
+import { CompletionToast } from './CompletionToast';
 
 // ---------------------------------------------------------------------------
 // Node type registry -- defined OUTSIDE the component to avoid recreation
@@ -48,6 +54,40 @@ interface DragPayload {
 export function PipelineCanvas() {
   const nodes = usePipelineStore((s) => s.nodes);
   const edges = usePipelineStore((s) => s.edges);
+  const stepResults = useExecutionStore((s) => s.stepResults);
+
+  // Blocked node ids: downstream of any failed step result.
+  const blockedNodeIds = useMemo(
+    () => computeBlockedNodeIds(stepResults, edges),
+    [stepResults, edges],
+  );
+
+  // Inject .clotho-node-blocked class on any node flagged as downstream-blocked.
+  // This lets nodes-states.css style them without touching BaseNode/AgentNode.
+  const decoratedNodes = useMemo(() => {
+    if (blockedNodeIds.size === 0) return nodes;
+    return nodes.map((n) => {
+      const isBlocked = blockedNodeIds.has(n.id);
+      const baseClass = n.className ?? '';
+      const hasBlocked = baseClass.split(/\s+/).includes('clotho-node-blocked');
+      if (isBlocked && !hasBlocked) {
+        return {
+          ...n,
+          className: `${baseClass} clotho-node-blocked`.trim(),
+        };
+      }
+      if (!isBlocked && hasBlocked) {
+        return {
+          ...n,
+          className: baseClass
+            .split(/\s+/)
+            .filter((c) => c !== 'clotho-node-blocked')
+            .join(' '),
+        };
+      }
+      return n;
+    });
+  }, [nodes, blockedNodeIds]);
   const onNodesChange = usePipelineStore((s) => s.onNodesChange);
   const onEdgesChange = usePipelineStore((s) => s.onEdgesChange);
   const onConnect = usePipelineStore((s) => s.onConnect);
@@ -122,9 +162,9 @@ export function PipelineCanvas() {
   );
 
   return (
-    <div style={{ flex: 1, height: '100%' }}>
+    <div style={{ flex: 1, height: '100%', position: 'relative' }}>
       <ReactFlow<Node<PipelineNodeData>>
-        nodes={nodes}
+        nodes={decoratedNodes}
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
@@ -143,6 +183,8 @@ export function PipelineCanvas() {
         <Background color="var(--surface-border)" gap={24} size={1} />
         <Controls className="clotho-controls" />
       </ReactFlow>
+      <EmptyCanvasState />
+      <CompletionToast />
     </div>
   );
 }

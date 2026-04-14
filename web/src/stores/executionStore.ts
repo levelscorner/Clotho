@@ -1,6 +1,61 @@
 import { create } from 'zustand';
+import type { Edge as RFEdge } from '@xyflow/react';
 import type { ExecutionStatus, StepResult } from '../lib/types';
 import { api } from '../lib/api';
+
+// ---------------------------------------------------------------------------
+// Selector helper: downstream-of-failed node ids
+//
+// Given the current stepResults map and the pipeline edges, BFS forward from
+// every failed node and return the set of reachable node ids (NOT including
+// the failed nodes themselves). These are the nodes the UI should render as
+// "blocked" — they can never succeed while their upstream dependency is red.
+// ---------------------------------------------------------------------------
+
+export function computeBlockedNodeIds(
+  stepResults: Map<string, StepResult>,
+  edges: ReadonlyArray<RFEdge>,
+): Set<string> {
+  const failed: string[] = [];
+  stepResults.forEach((result, nodeId) => {
+    if (result.status === 'failed') {
+      failed.push(nodeId);
+    }
+  });
+
+  if (failed.length === 0) {
+    return new Set();
+  }
+
+  // Build adjacency map source → [targets]
+  const adj = new Map<string, string[]>();
+  for (const edge of edges) {
+    const list = adj.get(edge.source);
+    if (list) {
+      list.push(edge.target);
+    } else {
+      adj.set(edge.source, [edge.target]);
+    }
+  }
+
+  const blocked = new Set<string>();
+  const queue: string[] = [...failed];
+  const visited = new Set<string>(failed);
+
+  while (queue.length > 0) {
+    const current = queue.shift() as string;
+    const targets = adj.get(current);
+    if (!targets) continue;
+    for (const target of targets) {
+      if (visited.has(target)) continue;
+      visited.add(target);
+      blocked.add(target);
+      queue.push(target);
+    }
+  }
+
+  return blocked;
+}
 
 // ---------------------------------------------------------------------------
 // Store

@@ -13,6 +13,7 @@ import (
 	"github.com/user/clotho/internal/engine"
 	"github.com/user/clotho/internal/llm"
 	"github.com/user/clotho/internal/queue"
+	"github.com/user/clotho/internal/storage"
 	"github.com/user/clotho/internal/store"
 )
 
@@ -30,6 +31,7 @@ type Deps struct {
 	LLMRegistry      *llm.ProviderRegistry
 	Queue            *queue.Queue
 	EventBus         *engine.EventBus
+	FileStore         storage.Store
 	JWTSecret         string
 	JWTExpiry         time.Duration
 	OllamaURL         string
@@ -92,6 +94,9 @@ func NewRouter(deps Deps) chi.Router {
 		handler.NewLLMHandler(deps.OllamaURL).Routes(r)
 		handler.NewTemplateHandler().Routes(r)
 		handler.NewStreamHandler(deps.EventBus).Routes(r)
+		if deps.FileStore != nil {
+			handler.NewFilesHandler(deps.FileStore).Routes(r)
+		}
 	})
 
 	return r

@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/user/clotho/internal/engine"
+	"github.com/user/clotho/internal/storage"
 	"github.com/user/clotho/internal/store"
 )
 
@@ -21,20 +22,28 @@ type Worker struct {
 	jobs             store.JobStore
 	executions       store.ExecutionStore
 	pipelineVersions store.PipelineVersionStore
+	pipelines        store.PipelineStore
+	projects         store.ProjectStore
 	engine           *engine.Engine
 }
 
-// NewWorker creates a Worker with all required dependencies.
+// NewWorker creates a Worker with all required dependencies. pipelines and
+// projects may be nil; when nil, executions are routed to the storage layer's
+// "unsorted" bucket instead of the {project}/{pipeline}/{exec} path.
 func NewWorker(
 	jobs store.JobStore,
 	executions store.ExecutionStore,
 	pipelineVersions store.PipelineVersionStore,
+	pipelines store.PipelineStore,
+	projects store.ProjectStore,
 	eng *engine.Engine,
 ) *Worker {
 	return &Worker{
 		jobs:             jobs,
 		executions:       executions,
 		pipelineVersions: pipelineVersions,
+		pipelines:        pipelines,
+		projects:         projects,
 		engine:           eng,
 	}
 }
@@ -109,13 +118,41 @@ func (w *Worker) processNext(ctx context.Context) {
 		}
 	}
 
+	// Build a storage Location so the engine and media providers can route
+	// generated files into {dataDir}/{project}/{pipeline}/{exec}/.
+	// Lookup failures are non-fatal — execution proceeds with a partial
+	// Location, and the storage layer falls back to "unsorted/".
+	loc := storage.Location{
+		PipelineID:  pv.PipelineID,
+		ExecutionID: execution.ID,
+	}
+	if w.pipelines != nil {
+		pipeline, pipelineErr := w.pipelines.Get(ctx, pv.PipelineID)
+		if pipelineErr != nil {
+			slog.Warn("worker: load pipeline for storage location failed; routing to unsorted", "pipeline_id", pv.PipelineID, "error", pipelineErr)
+		} else {
+			loc.PipelineSlug = storage.Slugify(pipeline.Name)
+			loc.ProjectID = pipeline.ProjectID
+
+			if w.projects != nil {
+				project, projectErr := w.projects.Get(ctx, pipeline.ProjectID)
+				if projectErr != nil {
+					slog.Warn("worker: load project for storage location failed; routing to unsorted", "project_id", pipeline.ProjectID, "error", projectErr)
+				} else {
+					loc.ProjectSlug = storage.Slugify(project.Name)
+				}
+			}
+		}
+	}
+	execCtx := storage.WithLocation(ctx, loc)
+
 	// Execute the workflow (full or partial re-run)
 	var execErr error
 	if fromNodeID != "" {
 		slog.Info("re-running from node", "from_node_id", fromNodeID, "execution_id", execution.ID)
-		execErr = w.engine.RerunFromNode(ctx, execution, pv.Graph, fromNodeID)
+		execErr = w.engine.RerunFromNode(execCtx, execution, pv.Graph, fromNodeID)
 	} else {
-		execErr = w.engine.ExecuteWorkflow(ctx, execution, pv.Graph)
+		execErr = w.engine.ExecuteWorkflow(execCtx, execution, pv.Graph)
 	}
 	if execErr != nil {
 		slog.Error("workflow execution failed", "error", execErr, "execution_id", execution.ID)

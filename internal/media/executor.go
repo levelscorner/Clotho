@@ -2,6 +2,7 @@ package media
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -12,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/user/clotho/internal/domain"
 	"github.com/user/clotho/internal/engine"
+	"github.com/user/clotho/internal/storage"
 	"github.com/user/clotho/internal/store"
 )
 
@@ -25,11 +27,65 @@ const (
 type MediaExecutor struct {
 	providers   *Registry
 	credentials store.CredentialStore
+	fileStore   storage.Store
 }
 
-// NewMediaExecutor creates a MediaExecutor with a provider registry and credential store.
-func NewMediaExecutor(providers *Registry, credentials store.CredentialStore) *MediaExecutor {
-	return &MediaExecutor{providers: providers, credentials: credentials}
+// NewMediaExecutor creates a MediaExecutor with a provider registry, credential
+// store, and optional file store. When fileStore is non-nil, data-URI provider
+// outputs are decoded and persisted to disk; the returned step output becomes a
+// `clotho://file/{rel}` reference instead of an inline base64 payload.
+func NewMediaExecutor(providers *Registry, credentials store.CredentialStore, fileStore storage.Store) *MediaExecutor {
+	return &MediaExecutor{providers: providers, credentials: credentials, fileStore: fileStore}
+}
+
+// maybeWriteToDisk inspects a provider's raw output. When it looks like a
+// `data:<mime>;base64,<payload>` URI and a file store is configured, it
+// decodes the payload, writes it under the location attached to ctx, and
+// returns a `clotho://file/{rel}` reference. Any failure (malformed URI,
+// missing fileStore, decode error, write error) returns the original output
+// unchanged so the execution continues — disk persistence is best-effort.
+func (e *MediaExecutor) maybeWriteToDisk(ctx context.Context, nodeID, output string) string {
+	if e.fileStore == nil {
+		return output
+	}
+	if !strings.HasPrefix(output, "data:") {
+		return output
+	}
+
+	// Expected shape: data:<mime>;base64,<payload>
+	rest := strings.TrimPrefix(output, "data:")
+	semi := strings.Index(rest, ";")
+	if semi < 0 {
+		return output
+	}
+	mime := rest[:semi]
+	rest = rest[semi+1:]
+	if !strings.HasPrefix(rest, "base64,") {
+		return output
+	}
+	payload := strings.TrimPrefix(rest, "base64,")
+	data, err := base64.StdEncoding.DecodeString(payload)
+	if err != nil {
+		slog.Warn("media executor: base64 decode failed; passing through data URI", "node_id", nodeID, "error", err)
+		return output
+	}
+
+	ext := storage.ExtensionForMIME(mime)
+	short := uuid.New().String()
+	if len(short) > 8 {
+		short = short[:8]
+	}
+	filename := fmt.Sprintf("%s-%s.%s", nodeID, short, ext)
+
+	loc, _ := storage.LocationFromContext(ctx)
+	loc.NodeID = nodeID
+
+	rel, _, err := e.fileStore.Write(ctx, loc, filename, data)
+	if err != nil {
+		slog.Warn("media executor: file write failed; passing through data URI", "node_id", nodeID, "error", err)
+		return output
+	}
+	return "clotho://file/" + rel
 }
 
 // Execute runs a media node synchronously: submits a job, polls until complete, and returns the output URL.
@@ -69,7 +125,9 @@ func (e *MediaExecutor) Execute(ctx context.Context, node domain.NodeInstance, i
 		return engine.StepOutput{}, fmt.Errorf("media executor: generation failed: %s", status.Error)
 	}
 
-	outputData, err := json.Marshal(status.Output)
+	finalOutput := e.maybeWriteToDisk(ctx, node.ID, status.Output)
+
+	outputData, err := json.Marshal(finalOutput)
 	if err != nil {
 		return engine.StepOutput{}, fmt.Errorf("media executor: marshal output: %w", err)
 	}
@@ -148,12 +206,13 @@ func (e *MediaExecutor) ExecuteStream(ctx context.Context, node domain.NodeInsta
 
 			switch status.State {
 			case "succeeded":
-				outputData, marshalErr := json.Marshal(status.Output)
+				finalOutput := e.maybeWriteToDisk(ctx, node.ID, status.Output)
+				outputData, marshalErr := json.Marshal(finalOutput)
 				if marshalErr != nil {
 					errCh <- fmt.Errorf("media executor: marshal output: %w", marshalErr)
 					return
 				}
-				chunks <- engine.ExecutorStreamChunk{Content: status.Output}
+				chunks <- engine.ExecutorStreamChunk{Content: finalOutput}
 				result <- engine.StepOutput{
 					Data: json.RawMessage(outputData),
 				}

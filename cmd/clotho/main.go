@@ -19,6 +19,7 @@ import (
 	"github.com/user/clotho/internal/llm"
 	"github.com/user/clotho/internal/media"
 	"github.com/user/clotho/internal/queue"
+	"github.com/user/clotho/internal/storage"
 	"github.com/user/clotho/internal/store"
 	"github.com/user/clotho/internal/store/postgres"
 	"github.com/user/clotho/migrations"
@@ -35,6 +36,11 @@ func main() {
 		Level: cfg.LogLevel,
 	}))
 	slog.SetDefault(logger)
+
+	// File store for generated media artifacts (images, audio, video) and
+	// per-execution manifest sidecars. Defaults to ~/Documents/Clotho.
+	fileStore := storage.NewLocal(cfg.DataDir)
+	slog.Info("data directory", "path", cfg.DataDir)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
@@ -114,19 +120,19 @@ func main() {
 	registry := engine.NewExecutorRegistry()
 	registry.Register(domain.NodeTypeAgent, engine.NewAgentExecutor(llmRegistry, credentialStore))
 	registry.Register(domain.NodeTypeTool, engine.NewToolExecutor())
-	registry.Register(domain.NodeTypeMedia, media.NewMediaExecutor(mediaRegistry, credentialStore))
+	registry.Register(domain.NodeTypeMedia, media.NewMediaExecutor(mediaRegistry, credentialStore, fileStore))
 
 	// Create event bus
 	eventBus := engine.NewEventBus()
 
 	// Create engine
-	eng := engine.NewEngine(registry, eventBus, executionStore, stepResultStore)
+	eng := engine.NewEngine(registry, eventBus, executionStore, stepResultStore, fileStore)
 
 	// Create queue
 	q := queue.NewQueue(jobStore)
 
 	// Create worker
-	worker := queue.NewWorker(jobStore, executionStore, pipelineVersionStore, eng)
+	worker := queue.NewWorker(jobStore, executionStore, pipelineVersionStore, pipelineStore, projectStore, eng)
 
 	deps := api.Deps{
 		Projects:         projectStore,
@@ -141,6 +147,7 @@ func main() {
 		LLMRegistry:      llmRegistry,
 		Queue:            q,
 		EventBus:         eventBus,
+		FileStore:         fileStore,
 		JWTSecret:         cfg.JWTSecret,
 		JWTExpiry:         cfg.JWTExpiry,
 		OllamaURL:         cfg.OllamaURL,

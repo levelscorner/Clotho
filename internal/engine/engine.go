@@ -10,8 +10,13 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/user/clotho/internal/domain"
+	"github.com/user/clotho/internal/storage"
 	"github.com/user/clotho/internal/store"
 )
+
+// manifestOutputPreviewBytes caps inline text output captured in the manifest
+// so the sidecar JSON stays human-readable when an agent emits a long body.
+const manifestOutputPreviewBytes = 1024
 
 // Engine orchestrates the execution of a pipeline graph.
 type Engine struct {
@@ -19,25 +24,37 @@ type Engine struct {
 	eventBus    *EventBus
 	executions  store.ExecutionStore
 	stepResults store.StepResultStore
+	fileStore   storage.Store
 }
 
-// NewEngine creates a new Engine with the given dependencies.
+// NewEngine creates a new Engine with the given dependencies. fileStore may be
+// nil; when nil, the engine skips manifest writes and per-node Location
+// plumbing is a no-op for downstream executors.
 func NewEngine(
 	registry *ExecutorRegistry,
 	eventBus *EventBus,
 	executions store.ExecutionStore,
 	stepResults store.StepResultStore,
+	fileStore storage.Store,
 ) *Engine {
 	return &Engine{
 		registry:    registry,
 		eventBus:    eventBus,
 		executions:  executions,
 		stepResults: stepResults,
+		fileStore:   fileStore,
 	}
 }
 
 // ExecuteWorkflow validates, sorts, and executes each node in the pipeline graph.
 func (e *Engine) ExecuteWorkflow(ctx context.Context, execution domain.Execution, graph domain.PipelineGraph) error {
+	startTime := time.Now()
+
+	// Pull the top-level Location attached by the worker (project/pipeline
+	// slugs + execution ID). If absent, the storage layer falls back to the
+	// "unsorted" bucket — execution still succeeds.
+	baseLoc, _ := storage.LocationFromContext(ctx)
+
 	// 1. Validate graph
 	if errs := ValidateGraph(graph); len(errs) > 0 {
 		msgs := make([]string, 0, len(errs))
@@ -149,9 +166,15 @@ func (e *Engine) ExecuteWorkflow(ctx context.Context, execution domain.Execution
 			return e.failExecution(ctx, execution.ID, fmt.Sprintf("no executor for node %s (type %s): %s", node.ID, node.Type, err))
 		}
 
+		// Attach a per-node Location so media providers can route output to
+		// the correct execution folder under {dataDir}/{project}/{pipeline}/{exec}/.
+		nodeLoc := baseLoc
+		nodeLoc.NodeID = node.ID
+		nodeCtx := storage.WithLocation(ctx, nodeLoc)
+
 		// Execute with streaming
 		start := time.Now()
-		chunks, resultCh, errCh := executor.ExecuteStream(ctx, node, inputs)
+		chunks, resultCh, errCh := executor.ExecuteStream(nodeCtx, node, inputs)
 
 		// Forward streaming chunks as events. Payload must be a JSON object
 		// with a named `chunk` field so the frontend can read it directly
@@ -243,6 +266,10 @@ func (e *Engine) ExecuteWorkflow(ctx context.Context, execution domain.Execution
 		slog.Error("failed to complete execution", "error", err)
 	}
 
+	// 5. Best-effort manifest sidecar. Failure here does not fail the run —
+	// the DB still has every step result and the user can re-export later.
+	e.writeManifestBestEffort(ctx, execution, graph, baseLoc, sortedNodes, startTime, totalCost, totalTokens)
+
 	e.eventBus.Publish(execution.ID, Event{
 		Type:        EventExecutionCompleted,
 		ExecutionID: execution.ID,
@@ -255,6 +282,9 @@ func (e *Engine) ExecuteWorkflow(ctx context.Context, execution domain.Execution
 // RerunFromNode re-executes a pipeline starting from a specific node, using
 // cached outputs from a prior execution for all nodes before fromNodeID.
 func (e *Engine) RerunFromNode(ctx context.Context, execution domain.Execution, graph domain.PipelineGraph, fromNodeID string) error {
+	startTime := time.Now()
+	baseLoc, _ := storage.LocationFromContext(ctx)
+
 	// 1. Validate graph
 	if errs := ValidateGraph(graph); len(errs) > 0 {
 		msgs := make([]string, 0, len(errs))
@@ -406,8 +436,12 @@ func (e *Engine) RerunFromNode(ctx context.Context, execution domain.Execution, 
 			return e.failExecution(ctx, execution.ID, fmt.Sprintf("no executor for node %s (type %s): %s", node.ID, node.Type, err))
 		}
 
+		nodeLoc := baseLoc
+		nodeLoc.NodeID = node.ID
+		nodeCtx := storage.WithLocation(ctx, nodeLoc)
+
 		start := time.Now()
-		chunks, resultCh, errCh := executor.ExecuteStream(ctx, node, inputs)
+		chunks, resultCh, errCh := executor.ExecuteStream(nodeCtx, node, inputs)
 
 		for chunk := range chunks {
 			chunkData, _ := json.Marshal(chunk.Content)
@@ -470,6 +504,8 @@ func (e *Engine) RerunFromNode(ctx context.Context, execution domain.Execution, 
 		slog.Error("failed to complete execution", "error", err)
 	}
 
+	e.writeManifestBestEffort(ctx, execution, graph, baseLoc, sortedNodes, startTime, totalCost, totalTokens)
+
 	e.eventBus.Publish(execution.ID, Event{
 		Type:        EventExecutionCompleted,
 		ExecutionID: execution.ID,
@@ -477,6 +513,123 @@ func (e *Engine) RerunFromNode(ctx context.Context, execution domain.Execution, 
 	})
 
 	return nil
+}
+
+// writeManifestBestEffort builds a Manifest from the execution's persisted
+// step results and writes it to {baseLoc}/manifest.json. Failures are logged
+// at warn level and swallowed — the user-visible execution stays "completed"
+// because the database has the authoritative record.
+func (e *Engine) writeManifestBestEffort(
+	ctx context.Context,
+	execution domain.Execution,
+	graph domain.PipelineGraph,
+	baseLoc storage.Location,
+	sortedNodes []domain.NodeInstance,
+	startTime time.Time,
+	totalCost float64,
+	totalTokens int,
+) {
+	if e.fileStore == nil {
+		return
+	}
+
+	stepResults, err := e.stepResults.ListByExecution(ctx, execution.ID)
+	if err != nil {
+		slog.Warn("manifest: list step results failed", "execution_id", execution.ID, "error", err)
+		return
+	}
+
+	// Index nodes by ID so we can pull names + media config for the manifest.
+	nodeByID := make(map[string]domain.NodeInstance, len(sortedNodes))
+	for _, n := range sortedNodes {
+		nodeByID[n.ID] = n
+	}
+
+	manifestNodes := make([]ManifestNode, 0, len(stepResults))
+	for _, sr := range stepResults {
+		node, hasNode := nodeByID[sr.NodeID]
+
+		mn := ManifestNode{
+			NodeID: sr.NodeID,
+			Status: string(sr.Status),
+		}
+		if hasNode {
+			mn.NodeName = node.Label
+			mn.Type = string(node.Type)
+			if node.Type == domain.NodeTypeMedia {
+				var mcfg domain.MediaNodeConfig
+				if err := json.Unmarshal(node.Config, &mcfg); err == nil {
+					mn.Provider = mcfg.Provider
+					mn.Model = mcfg.Model
+					mn.Prompt = mcfg.Prompt
+				}
+			}
+		}
+
+		// Decode the persisted output to decide whether it is an on-disk
+		// reference or inline text.
+		if len(sr.OutputData) > 0 {
+			var s string
+			if err := json.Unmarshal(sr.OutputData, &s); err == nil {
+				if rel, ok := strings.CutPrefix(s, "clotho://file/"); ok {
+					// Manifest stores just the basename — the file lives in
+					// the same dir as manifest.json.
+					mn.OutputFile = lastSegment(rel)
+				} else if s != "" {
+					mn.Output = truncateForManifest(s)
+				}
+			}
+		}
+
+		if sr.DurationMs != nil {
+			mn.DurationMs = *sr.DurationMs
+		}
+		if sr.CostUSD != nil {
+			mn.CostUSD = *sr.CostUSD
+		}
+		if sr.TokensUsed != nil {
+			mn.TokensUsed = *sr.TokensUsed
+		}
+		if sr.Error != nil {
+			mn.Error = *sr.Error
+		}
+
+		manifestNodes = append(manifestNodes, mn)
+	}
+
+	m := Manifest{
+		ExecutionID:  execution.ID,
+		PipelineID:   baseLoc.PipelineID,
+		PipelineName: baseLoc.PipelineSlug,
+		ProjectID:    baseLoc.ProjectID,
+		StartedAt:    startTime,
+		CompletedAt:  time.Now(),
+		TotalCostUSD: totalCost,
+		TotalTokens:  totalTokens,
+		Nodes:        manifestNodes,
+	}
+
+	if _, err := WriteManifest(ctx, e.fileStore, baseLoc, m); err != nil {
+		slog.Warn("manifest: write failed", "execution_id", execution.ID, "error", err)
+	}
+}
+
+// lastSegment returns the path's final slash-separated component (basename).
+func lastSegment(p string) string {
+	if i := strings.LastIndex(p, "/"); i >= 0 {
+		return p[i+1:]
+	}
+	return p
+}
+
+// truncateForManifest caps a string to manifestOutputPreviewBytes runes,
+// appending an ellipsis marker when truncated. Operates on bytes (not runes)
+// because we only need a sanity cap on JSON size, not perfect text segmentation.
+func truncateForManifest(s string) string {
+	if len(s) <= manifestOutputPreviewBytes {
+		return s
+	}
+	return s[:manifestOutputPreviewBytes] + "...[truncated]"
 }
 
 // failExecution marks the execution as failed and publishes a failure event.

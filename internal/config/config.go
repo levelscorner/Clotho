@@ -106,8 +106,8 @@ func Load() (*Config, error) {
 	cfg.AdminPassword = getEnv("ADMIN_PASSWORD", "clotho123")
 
 	// Auth bypass (local-dev only; fail-closed via Validate)
-	cfg.NoAuth = strings.EqualFold(getEnv("NO_AUTH", ""), "true")
-	cfg.AcknowledgeNoAuth = strings.EqualFold(getEnv("CLOTHO_ACKNOWLEDGE_NO_AUTH", ""), "true")
+	cfg.NoAuth = isTruthy(getEnv("NO_AUTH", ""))
+	cfg.AcknowledgeNoAuth = isTruthy(getEnv("CLOTHO_ACKNOWLEDGE_NO_AUTH", ""))
 
 	if err := cfg.Validate(); err != nil {
 		return nil, err
@@ -125,6 +125,19 @@ func getEnv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// isTruthy parses common truthy string representations case-insensitively.
+// Returns true for: "true", "yes", "y", "on", "1". False for everything
+// else, including the empty string. Used for NO_AUTH-style opt-in flags
+// where users reasonably type any of the above forms.
+func isTruthy(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "true", "yes", "y", "on", "1":
+		return true
+	default:
+		return false
+	}
 }
 
 func generateRandomHex(n int) string {

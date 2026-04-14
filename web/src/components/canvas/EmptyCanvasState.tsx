@@ -159,14 +159,37 @@ function loadSamplePipeline(): void {
 
 export function EmptyCanvasState(): JSX.Element | null {
   const nodeCount = usePipelineStore((s) => s.nodes.length);
+  const pipelineId = usePipelineStore((s) => s.pipelineId);
   const [dismissed, setDismissed] = useState<boolean>(() => readDismissed());
+  // Track whether the component has ever been visible during this session.
+  // We only auto-dismiss and mark localStorage when the user adds nodes
+  // while the empty state is actively shown — not when the pipeline loads
+  // with pre-existing nodes (isDirty=false on initial load).
+  const [wasVisible, setWasVisible] = useState<boolean>(false);
+
+  // Reset dismissed when the pipeline switches and the new pipeline is empty
+  // so a fresh empty pipeline shows the empty state regardless of prior dismissal.
+  useEffect(() => {
+    if (nodeCount === 0) {
+      // Clear the global flag so empty pipelines always show the onboarding state.
+      const storage = getStorage();
+      try { storage?.removeItem(DISMISS_KEY); } catch { /* ignore */ }
+      setDismissed(false);
+    }
+    setWasVisible(false);
+  // Only re-run when the pipeline identity changes, not on node changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pipelineId]);
 
   useEffect(() => {
-    if (nodeCount > 0 && !dismissed) {
+    // Only auto-dismiss via localStorage if the empty state was shown first
+    // (wasVisible) and the user then added nodes (nodeCount > 0).
+    // This prevents auto-dismissal when the pipeline loads pre-populated.
+    if (nodeCount > 0 && wasVisible && !dismissed) {
       markDismissed();
       setDismissed(true);
     }
-  }, [nodeCount, dismissed]);
+  }, [nodeCount, dismissed, wasVisible]);
 
   const onLoadSample = useCallback(() => {
     loadSamplePipeline();
@@ -174,10 +197,20 @@ export function EmptyCanvasState(): JSX.Element | null {
     setDismissed(true);
   }, []);
 
-  // Also hide synchronously when nodes are present — useEffect runs client-side
-  // but SSR needs the correct output, and CSR should not flash the empty state.
-  if (nodeCount > 0) return null;
-  if (dismissed) return null;
+  // Determine visibility before effects so the "wasVisible" marker is accurate.
+  const shouldShow =
+    nodeCount === 0 && Boolean(pipelineId) && !dismissed;
+
+  // Mark as visible once we've shown the empty state at least once.
+  useEffect(() => {
+    if (shouldShow && !wasVisible) {
+      setWasVisible(true);
+    }
+  }, [shouldShow, wasVisible]);
+
+  // When a pipeline loaded from the API already has nodes, hide without
+  // marking dismissed so a later empty pipeline shows the state correctly.
+  if (!shouldShow) return null;
 
   return (
     <>

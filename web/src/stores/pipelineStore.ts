@@ -352,16 +352,29 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
               ports: ni.ports,
               config: ni.config as AgentNodeConfig,
             }
-          : {
-              nodeType: 'tool' as const,
-              label: ni.label,
-              ports: ni.ports,
-              config: ni.config as ToolNodeConfig,
-            };
+          : ni.type === 'media'
+            ? {
+                nodeType: 'media' as const,
+                label: ni.label,
+                ports: ni.ports,
+                config: ni.config as MediaNodeConfig,
+              }
+            : {
+                nodeType: 'tool' as const,
+                label: ni.label,
+                ports: ni.ports,
+                config: ni.config as ToolNodeConfig,
+              };
+
+      const rfTypeMap: Record<string, string> = {
+        agent: 'agentNode',
+        media: 'mediaNode',
+        tool: 'toolNode',
+      };
 
       return {
         id: ni.id,
-        type: ni.type === 'agent' ? 'agentNode' : 'toolNode',
+        type: rfTypeMap[ni.type] ?? 'toolNode',
         position: ni.position,
         data,
       };

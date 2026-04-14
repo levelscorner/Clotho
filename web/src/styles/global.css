@@ -3,6 +3,11 @@
    See DESIGN.md for the full token reference.
    --------------------------------------------------------------------------- */
 
+/* Layout + responsive rules — @import MUST precede all rules per CSS spec.
+   Vite will not process @import statements that appear after other rules.  */
+@import './../components/layout/AppShell.css';
+@import './responsive.css';
+
 /* Design Tokens */
 :root {
   /* Surfaces */
@@ -125,8 +130,4 @@ button {
 }
 
 /* Fonts loaded via <link> tags in index.html for optimal loading */
-
-/* Layout + responsive rules */
-@import './../components/layout/AppShell.css';
-@import './responsive.css';
 

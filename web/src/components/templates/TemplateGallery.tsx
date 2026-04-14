@@ -144,6 +144,9 @@ export function TemplateGallery({ onClose }: TemplateGalleryProps) {
   return (
     <div
       className="clotho-z-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Template gallery"
       style={{
         position: 'fixed',
         inset: 0,

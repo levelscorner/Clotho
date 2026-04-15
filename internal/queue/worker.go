@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"runtime/debug"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -49,13 +51,20 @@ func NewWorker(
 }
 
 // Run starts the worker loop. It polls for jobs every 500ms and processes them.
-// Blocks until the context is cancelled.
+// Blocks until the context is cancelled, and waits for in-flight goroutines
+// (reap loop) to return before it reports stopped.
 func (w *Worker) Run(ctx context.Context) {
 	slog.Info("worker started")
 	defer slog.Info("worker stopped")
 
-	// Start zombie reaper in background
-	go w.reapLoop(ctx)
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		w.reapLoop(ctx)
+	}()
+	defer wg.Wait()
 
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
@@ -65,9 +74,23 @@ func (w *Worker) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			w.processNext(ctx)
+			w.processNextSafe(ctx)
 		}
 	}
+}
+
+// processNextSafe wraps processNext in a panic recovery. One bad job must
+// not crash the whole worker process — log, mark the current tick lost,
+// and continue the poll loop on the next tick.
+func (w *Worker) processNextSafe(ctx context.Context) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("worker: processNext panicked; continuing",
+				"panic", r,
+				"stack", string(debug.Stack()))
+		}
+	}()
+	w.processNext(ctx)
 }
 
 func (w *Worker) processNext(ctx context.Context) {

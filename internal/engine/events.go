@@ -32,6 +32,17 @@ type Event struct {
 }
 
 // EventBus provides pub/sub for execution events.
+//
+// Concurrency model:
+//   - Subscribe / Unsubscribe take the write lock. That serializes the
+//     subscriber-list mutation and the channel close.
+//   - Publish takes the read lock and uses a non-blocking select for every
+//     subscriber send. Because RLock excludes the Unsubscribe write lock,
+//     no channel can be closed while Publish holds the lock — so the
+//     `ch <- event` send is never a send-to-closed-channel panic.
+//   - Dropped events when a subscriber is slow surface as warnings; they
+//     are a capacity issue, not a correctness issue.
+//
 // Subscribers receive events on a buffered channel keyed by execution ID.
 type EventBus struct {
 	mu          sync.RWMutex

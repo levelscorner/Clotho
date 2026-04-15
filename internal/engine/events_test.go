@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -162,4 +163,55 @@ func TestEventBus_BufferOverflow(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		bus.Publish(execID, event)
 	}
+}
+
+// TestEventBus_ConcurrentPubSubUnsub runs many parallel Publish + Unsubscribe
+// operations to flush out any send-to-closed-channel races. Must pass under
+// `go test -race`.
+func TestEventBus_ConcurrentPubSubUnsub(t *testing.T) {
+	t.Parallel()
+
+	bus := NewEventBus()
+	execID := uuid.New()
+
+	const subs = 16
+	const publishes = 500
+
+	var wg sync.WaitGroup
+
+	// Start N subscribers that drain their channels. Each Unsubscribes at a
+	// different moment so Publish is exercised concurrent with lifecycle.
+	channels := make([]<-chan Event, subs)
+	for i := 0; i < subs; i++ {
+		ch := bus.Subscribe(execID)
+		channels[i] = ch
+		wg.Add(1)
+		go func(ch <-chan Event) {
+			defer wg.Done()
+			// Drain until closed — no assertions, we only care that the
+			// race detector doesn't flag anything.
+			for range ch {
+			}
+		}(ch)
+	}
+
+	// Fire a stream of publishes in the background.
+	done := make(chan struct{})
+	go func() {
+		ev := Event{Type: EventStepChunk, ExecutionID: execID, Timestamp: time.Now()}
+		for i := 0; i < publishes; i++ {
+			bus.Publish(execID, ev)
+		}
+		close(done)
+	}()
+
+	// Unsubscribe every subscriber while publishes are in-flight. Each
+	// close() runs under the write lock — the read detector should confirm
+	// no publisher is sending at the same time.
+	for _, ch := range channels {
+		bus.Unsubscribe(execID, ch)
+	}
+
+	<-done
+	wg.Wait()
 }

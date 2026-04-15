@@ -1,3 +1,4 @@
+import { useState, useImperativeHandle, forwardRef } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { DotsThree } from 'phosphor-react';
 import { usePipelineStore } from '../../../stores/pipelineStore';
@@ -21,13 +22,22 @@ interface NodeActionsMenuProps {
   label?: string;
 }
 
-export function NodeActionsMenu({ nodeId, label }: NodeActionsMenuProps) {
+export interface NodeActionsMenuHandle {
+  /** Programmatically open the menu (used by right-click on the node body). */
+  open: () => void;
+}
+
+export const NodeActionsMenu = forwardRef<NodeActionsMenuHandle, NodeActionsMenuProps>(
+  function NodeActionsMenu({ nodeId, label }, ref) {
+  const [open, setOpen] = useState(false);
   const removeNodes = usePipelineStore((s) => s.removeNodes);
   const duplicateNode = usePipelineStore((s) => s.duplicateNode);
   const toggleLock = usePipelineStore((s) => s.toggleLock);
   const startRename = usePipelineStore((s) => s.startRename);
   const isLocked = usePipelineStore((s) => s.lockedNodes.has(nodeId));
   const stepResult = useExecutionStore((s) => s.stepResults.get(nodeId));
+
+  useImperativeHandle(ref, () => ({ open: () => setOpen(true) }), []);
 
   const output = stepResult?.output;
   const hasOutput = Boolean(output);
@@ -36,7 +46,7 @@ export function NodeActionsMenu({ nodeId, label }: NodeActionsMenuProps) {
   const triggerAria = label ? `Actions for ${label}` : 'Node actions';
 
   return (
-    <DropdownMenu.Root>
+    <DropdownMenu.Root open={open} onOpenChange={setOpen}>
       <DropdownMenu.Trigger asChild>
         <button
           type="button"
@@ -129,4 +139,4 @@ export function NodeActionsMenu({ nodeId, label }: NodeActionsMenuProps) {
       </DropdownMenu.Portal>
     </DropdownMenu.Root>
   );
-}
+});

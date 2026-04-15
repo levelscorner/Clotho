@@ -1,65 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { NodePalette } from '../NodePalette';
-import { api } from '../../../lib/api';
 import { useUIStore } from '../../../stores/uiStore';
-import type { AgentPreset } from '../../../lib/types';
-
-// ---------------------------------------------------------------------------
-// Test fixtures — one preset per personality so we can assert icon mapping
-// works for known names and falls back gracefully for unknown ones.
-// ---------------------------------------------------------------------------
-
-const PRESET_FIXTURES: AgentPreset[] = [
-  {
-    id: 'p1',
-    name: 'Script Writer',
-    description: '',
-    category: 'script',
-    icon: '',
-    is_built_in: true,
-    config: {
-      provider: 'openai',
-      model: 'gpt-4o',
-      role: { system_prompt: '', persona: '' },
-      task: { task_type: 'custom', output_type: 'text', template: '' },
-      temperature: 0.7,
-      max_tokens: 2048,
-    },
-  },
-  {
-    id: 'p2',
-    name: 'Image Prompt Crafter',
-    description: '',
-    category: 'image',
-    icon: '',
-    is_built_in: true,
-    config: {
-      provider: 'openai',
-      model: 'gpt-4o',
-      role: { system_prompt: '', persona: '' },
-      task: { task_type: 'custom', output_type: 'image_prompt', template: '' },
-      temperature: 0.7,
-      max_tokens: 2048,
-    },
-  },
-  {
-    id: 'p3',
-    name: 'Mystery Unknown Preset',
-    description: '',
-    category: 'other',
-    icon: '',
-    is_built_in: false,
-    config: {
-      provider: 'openai',
-      model: 'gpt-4o',
-      role: { system_prompt: '', persona: '' },
-      task: { task_type: 'custom', output_type: 'text', template: '' },
-      temperature: 0.7,
-      max_tokens: 2048,
-    },
-  },
-];
 
 describe('NodePalette', () => {
   beforeEach(() => {
@@ -79,28 +21,11 @@ describe('NodePalette', () => {
         })),
       });
     }
-    vi.spyOn(api, 'get').mockResolvedValue(PRESET_FIXTURES as never);
     // Force the "show all sections" branch. On desktop the palette is a
     // click-to-open flyout (only one section at a time); mobilePaletteOpen
-    // toggles the legacy full-drawer view, which surfaces all three so
+    // toggles the legacy full-drawer view, which surfaces all sections so
     // structural assertions below still have something to inspect.
     useUIStore.setState({ mobilePaletteOpen: true });
-  });
-
-  // -----------------------------------------------------------------------
-  // Structure: three sections only — Agent / Personality / Tools.
-  // "Media" used to be a fourth section; it has been collapsed into Agent.
-  // -----------------------------------------------------------------------
-
-  it('renders exactly three section headers: Agent, Personality, Tools', async () => {
-    render(<NodePalette />);
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /agent/i })).toBeInTheDocument();
-    });
-    expect(screen.getByRole('heading', { name: /personality/i })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /tools/i })).toBeInTheDocument();
-    // Media header should no longer exist anywhere in the palette.
-    expect(screen.queryByRole('heading', { name: /^media$/i })).not.toBeInTheDocument();
   });
 
   // -----------------------------------------------------------------------
@@ -209,37 +134,5 @@ describe('NodePalette', () => {
     expect(screen.getAllByText('Video').length).toBeGreaterThanOrEqual(2);
     // "Text" label only appears in the Tools section.
     expect(screen.getByText('Text')).toBeInTheDocument();
-  });
-
-  // -----------------------------------------------------------------------
-  // Personality section — unchanged (presetIcons.ts lookup).
-  // -----------------------------------------------------------------------
-
-  it('renders preset tiles with Phosphor SVG icons (no 2-letter chip)', async () => {
-    render(<NodePalette />);
-    await waitFor(() => {
-      expect(screen.getByText('Script Writer')).toBeInTheDocument();
-    });
-
-    const scriptTile = screen.getByTestId('palette-preset-script-writer');
-    // Phosphor icons render as <svg>. Presence of an SVG inside the tile
-    // proves the chip was replaced.
-    const svg = scriptTile.querySelector('svg');
-    expect(svg).not.toBeNull();
-
-    // Legacy initial chip ("Sw") must not exist anywhere.
-    expect(within(scriptTile).queryByText('Sw')).toBeNull();
-  });
-
-  it('falls back to default icon for unknown preset names without crashing', async () => {
-    render(<NodePalette />);
-    await waitFor(() => {
-      expect(screen.getByText('Mystery Unknown Preset')).toBeInTheDocument();
-    });
-    const unknownTile = screen.getByTestId(
-      'palette-preset-mystery-unknown-preset',
-    );
-    const svg = unknownTile.querySelector('svg');
-    expect(svg).not.toBeNull();
   });
 });

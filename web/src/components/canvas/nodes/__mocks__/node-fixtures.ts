@@ -2,9 +2,9 @@
    Node fixtures for every node kind × state combination.
    Consumed by the Wave 4 dev route (/dev/nodes) and by unit tests.
 
-   Agent (Lane E): 3 preset_categories × 5 states = 15
-   Media (Lane K): 3 media_types × 5 states        = 15
-   Tool  (Lane K): 3 tool_types × 5 states         = 15
+   Agent: 1 config × 5 states = 5
+   Media: 3 media_types × 5 states = 15
+   Tool:  3 tool_types × 5 states = 15
 
    All fixtures are immutable data — consumers that need execution state
    should seed the execution store via `seedStoreFromFixture`.
@@ -23,8 +23,6 @@ import type {
   ToolType,
 } from '../../../../lib/types';
 
-export type FixturePresetCategory = 'script' | 'crafter' | 'generic';
-
 export type FixtureState =
   | 'queued'
   | 'running'
@@ -34,7 +32,6 @@ export type FixtureState =
 
 export interface NodeFixture {
   id: string;
-  presetCategory: FixturePresetCategory;
   state: FixtureState;
   data: AgentNodeData;
   stepResult?: StepResult;
@@ -42,7 +39,7 @@ export interface NodeFixture {
 }
 
 // ---------------------------------------------------------------------------
-// Base configs
+// Base config
 // ---------------------------------------------------------------------------
 
 const baseRole = (persona: string, prompt: string) => ({
@@ -51,35 +48,7 @@ const baseRole = (persona: string, prompt: string) => ({
   variables: {},
 });
 
-const SCRIPT_CONFIG: AgentNodeConfig = {
-  provider: 'openai',
-  model: 'gpt-4o',
-  role: baseRole('Script Writer', 'You are a cinematic screenwriter.'),
-  task: {
-    task_type: 'script',
-    output_type: 'text',
-    template: 'Write a short opening scene.',
-  },
-  temperature: 0.7,
-  max_tokens: 2048,
-  preset_category: 'script',
-};
-
-const CRAFTER_CONFIG: AgentNodeConfig = {
-  provider: 'openai',
-  model: 'gpt-4o-mini',
-  role: baseRole('Image Prompt Crafter', 'You craft precise image prompts.'),
-  task: {
-    task_type: 'image_prompt',
-    output_type: 'image_prompt',
-    template: 'Turn the scene into a single image prompt.',
-  },
-  temperature: 0.3,
-  max_tokens: 512,
-  preset_category: 'crafter',
-};
-
-const GENERIC_CONFIG: AgentNodeConfig = {
+const AGENT_CONFIG: AgentNodeConfig = {
   provider: 'openai',
   model: 'gpt-4o',
   role: baseRole('Custom Agent', 'You are a helpful agent.'),
@@ -90,28 +59,12 @@ const GENERIC_CONFIG: AgentNodeConfig = {
   },
   temperature: 0.6,
   max_tokens: 1024,
-  // preset_category intentionally omitted → generic
 };
 
-const CONFIGS: Record<FixturePresetCategory, AgentNodeConfig> = {
-  script: SCRIPT_CONFIG,
-  crafter: CRAFTER_CONFIG,
-  generic: GENERIC_CONFIG,
-};
+const AGENT_LABEL = 'Custom Agent';
 
-const LABELS: Record<FixturePresetCategory, string> = {
-  script: 'Script Writer',
-  crafter: 'Image Prompt Crafter',
-  generic: 'Custom Agent',
-};
-
-const SAMPLE_OUTPUTS: Record<FixturePresetCategory, string> = {
-  script:
-    '"In the year of the great drought, the river spoke to her again — a low hum beneath dry reeds..."',
-  crafter:
-    'cinematic wide shot, warm amber dawn over cracked riverbed, reeds silhouetted, dust in the air, 35mm film grain',
-  generic: 'The assistant produced a short summary of the requested item.',
-};
+const AGENT_SAMPLE_OUTPUT =
+  'The assistant produced a short summary of the requested item.';
 
 // ---------------------------------------------------------------------------
 // Port skeleton — shared shape; real graphs may differ.
@@ -138,18 +91,17 @@ const DEFAULT_PORTS: Port[] = [
 // Builders
 // ---------------------------------------------------------------------------
 
-function buildData(category: FixturePresetCategory): AgentNodeData {
+function buildData(): AgentNodeData {
   return {
     nodeType: 'agent',
-    label: LABELS[category],
+    label: AGENT_LABEL,
     ports: DEFAULT_PORTS,
-    config: CONFIGS[category],
+    config: AGENT_CONFIG,
   };
 }
 
 function buildStepResult(
   nodeId: string,
-  category: FixturePresetCategory,
   state: FixtureState,
 ): StepResult | undefined {
   switch (state) {
@@ -162,14 +114,14 @@ function buildStepResult(
       return {
         node_id: nodeId,
         status: 'running',
-        output: SAMPLE_OUTPUTS[category].slice(0, 40),
+        output: AGENT_SAMPLE_OUTPUT.slice(0, 40),
         tokens_used: 64,
       };
     case 'complete':
       return {
         node_id: nodeId,
         status: 'completed',
-        output: SAMPLE_OUTPUTS[category],
+        output: AGENT_SAMPLE_OUTPUT,
         tokens_used: 142,
         cost: 0.012,
         duration_ms: 2400,
@@ -194,10 +146,9 @@ function buildStepResult(
 }
 
 // ---------------------------------------------------------------------------
-// Fixture table — 3 × 5 = 15 combos
+// Fixture table — 1 × 5 = 5 combos
 // ---------------------------------------------------------------------------
 
-const CATEGORIES: FixturePresetCategory[] = ['script', 'crafter', 'generic'];
 const STATES: FixtureState[] = [
   'queued',
   'running',
@@ -206,29 +157,21 @@ const STATES: FixtureState[] = [
   'failed',
 ];
 
-export const NODE_FIXTURES: NodeFixture[] = CATEGORIES.flatMap((category) =>
-  STATES.map<NodeFixture>((state) => {
-    const id = `fixture-${category}-${state}`;
-    return {
-      id,
-      presetCategory: category,
-      state,
-      data: buildData(category),
-      stepResult: buildStepResult(id, category, state),
-      selected: false,
-    };
-  }),
-);
+export const NODE_FIXTURES: NodeFixture[] = STATES.map<NodeFixture>((state) => {
+  const id = `fixture-agent-${state}`;
+  return {
+    id,
+    state,
+    data: buildData(),
+    stepResult: buildStepResult(id, state),
+    selected: false,
+  };
+});
 
-export function getFixture(
-  category: FixturePresetCategory,
-  state: FixtureState,
-): NodeFixture {
-  const match = NODE_FIXTURES.find(
-    (f) => f.presetCategory === category && f.state === state,
-  );
+export function getFixture(state: FixtureState): NodeFixture {
+  const match = NODE_FIXTURES.find((f) => f.state === state);
   if (!match) {
-    throw new Error(`No fixture for ${category} × ${state}`);
+    throw new Error(`No fixture for ${state}`);
   }
   return match;
 }

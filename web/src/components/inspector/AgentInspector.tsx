@@ -223,7 +223,6 @@ export function AgentInspector({ nodeId, label, config, stepResult }: AgentInspe
       <AboutNodeSection
         description={describeNode({
           nodeType: 'agent',
-          presetCategory: config.preset_category,
         })}
       />
 

@@ -2,6 +2,7 @@ import React, { useCallback } from 'react';
 import type { NodeProps, Node } from '@xyflow/react';
 import type { AgentNodeData, AgentNodeConfig } from '../../../lib/types';
 import { BaseNode } from './BaseNode';
+import { NodeRunButton } from './NodeRunButton';
 import { usePipelineStore } from '../../../stores/pipelineStore';
 import { useExecutionStore } from '../../../stores/executionStore';
 import { mapError } from '../../../lib/errorRemediation';
@@ -56,19 +57,9 @@ function AgentNodeInner({ id, data, selected }: NodeProps<AgentNodeType>) {
   const error = stepResult?.error;
   const cost = stepResult?.cost;
   const duration = stepResult?.duration_ms;
-  const tokens = stepResult?.tokens_used;
 
-  // Preset-based personality dispatch. Mirrors MediaNode's `clotho-node--media-${mediaType}` pattern.
-  const presetCategory = config.preset_category;
-  const presetClass =
-    presetCategory === 'script'
-      ? 'clotho-node--agent-script'
-      : presetCategory === 'crafter'
-        ? 'clotho-node--agent-crafter'
-        : 'clotho-node--agent-generic';
-
-  // Generate 2-letter initials from label (e.g., "Script Writer" -> "Sw")
-  const label = config.role.persona || data.label;
+  // All agents render the same — personalities were dropped from the product.
+  const label = data.label;
   const words = label.split(/\s+/).filter(Boolean);
   const initials =
     words.length >= 2
@@ -88,7 +79,6 @@ function AgentNodeInner({ id, data, selected }: NodeProps<AgentNodeType>) {
         ports={data.ports}
         variant="agent"
         selected={selected}
-        className={presetClass}
       >
         <div className="clotho-node__header">
           <div className="clotho-node__icon clotho-node__icon--agent">
@@ -142,33 +132,25 @@ function AgentNodeInner({ id, data, selected }: NodeProps<AgentNodeType>) {
               value={config.task.template}
               onChange={handlePromptChange}
               onMouseDown={(e) => e.stopPropagation()}
+              // The outer div's onKeyDown calls preventDefault on Enter/Space
+              // to mimic button activation. Without stopPropagation here,
+              // every space you type in the textarea is swallowed.
+              onKeyDown={(e) => e.stopPropagation()}
               placeholder="Your prompt goes here…"
               aria-label={`Prompt for ${label}`}
             />
           )}
 
-          {/* Preset-specific readouts */}
-          {presetClass === 'clotho-node--agent-script' && status !== 'failed' && (
-            <div className="clotho-node__script-readout">
-              {tokens != null ? `${tokens} tokens` : '—'}
-            </div>
-          )}
-          {presetClass === 'clotho-node--agent-crafter' && status !== 'failed' && !output && (
-            <div className="clotho-node__crafter-lcd clotho-node__crafter-lcd--empty">
-              —
-            </div>
-          )}
-          {presetClass === 'clotho-node--agent-crafter' && output && status !== 'failed' && (
-            <div className="clotho-node__crafter-lcd">{output}</div>
-          )}
         </div>
 
-        {/* Footer with status + cost */}
+        {/* Footer with status + cost + per-node run button */}
         <div className="clotho-node__footer">
           <span className={`clotho-node__status-dot clotho-node__status-dot--${status ?? 'idle'}`} />
           <span>{status ?? 'Idle'}</span>
           {duration != null && <span>&middot; {(duration / 1000).toFixed(1)}s</span>}
           {cost != null && <span>&middot; ${cost.toFixed(4)}</span>}
+          <span style={{ flex: 1 }} />
+          <NodeRunButton nodeId={id} />
         </div>
       </BaseNode>
     </div>

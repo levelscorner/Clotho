@@ -21,7 +21,7 @@ describe('DevNodes testbed page', () => {
   });
 
   it('exposes fixtures for every node kind', () => {
-    expect(ALL_FIXTURES.agent.length).toBeGreaterThanOrEqual(15);
+    expect(ALL_FIXTURES.agent.length).toBeGreaterThanOrEqual(5);
     expect(ALL_FIXTURES.media.length).toBeGreaterThanOrEqual(15);
     expect(ALL_FIXTURES.tool.length).toBeGreaterThanOrEqual(5);
   });
@@ -30,11 +30,9 @@ describe('DevNodes testbed page', () => {
     const html = renderToStaticMarkup(<DevNodes />);
     expect(html).toContain('Clotho');
     expect(html).toContain('Node Fixtures');
-    // The default active tab is agent-script — all 7 tab labels should appear
+    // The default active tab is agent — all tab labels should appear
     // in the tab bar regardless.
-    expect(html).toContain('Agent · Script');
-    expect(html).toContain('Agent · Crafter');
-    expect(html).toContain('Agent · Generic');
+    expect(html).toContain('Agent');
     expect(html).toContain('Media · Image');
     expect(html).toContain('Media · Video');
     expect(html).toContain('Media · Audio');
@@ -43,9 +41,9 @@ describe('DevNodes testbed page', () => {
 
   it('renders at least one fixture card on the default tab', () => {
     const html = renderToStaticMarkup(<DevNodes />);
-    // The default tab is agent-script. Our agent fixtures use the id pattern
-    // fixture-<category>-<state>.
-    expect(html).toMatch(/fixture-script-/);
+    // The default tab is agent. Our agent fixtures use the id pattern
+    // fixture-agent-<state>.
+    expect(html).toMatch(/fixture-agent-/);
     // Confirm at least one state badge rendered.
     expect(html).toMatch(/QUEUED|RUNNING|COMPLETE|FAILED/);
   });

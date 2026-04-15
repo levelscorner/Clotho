@@ -2,6 +2,7 @@ import React, { useCallback } from 'react';
 import type { NodeProps, Node } from '@xyflow/react';
 import type { MediaNodeData, MediaNodeConfig, MediaType } from '../../../lib/types';
 import { BaseNode } from './BaseNode';
+import { NodeRunButton } from './NodeRunButton';
 import { LOCAL_MEDIA_PROVIDERS } from '../../inspector/MediaInspector';
 import { usePipelineStore } from '../../../stores/pipelineStore';
 import { useExecutionStore } from '../../../stores/executionStore';
@@ -206,26 +207,27 @@ function MediaNodeInner({ id, data, selected }: NodeProps<MediaNodeType>) {
           </>
         )}
 
-        {/* Footer with status + cost. Local providers (kokoro/comfyui/ollama)
-            surface "local" instead of a dollar amount so users see zero-cost
-            inference at a glance. */}
-        {status && (
-          <div className="clotho-node__footer">
-            <span className={`clotho-node__status-dot clotho-node__status-dot--${status}`} />
-            <span>{status}</span>
-            {duration != null && <span>&middot; {(duration / 1000).toFixed(1)}s</span>}
-            {cost != null && (
-              <span>
-                &middot;{' '}
-                {LOCAL_MEDIA_PROVIDERS.has(config.provider) ? (
-                  <span className="clotho-node__cost-local">local</span>
-                ) : (
-                  `$${cost.toFixed(4)}`
-                )}
-              </span>
-            )}
-          </div>
-        )}
+        {/* Footer with status + cost + per-node run button. Local providers
+            (kokoro/comfyui/ollama) surface "local" instead of a dollar amount
+            so users see zero-cost inference at a glance. Footer always
+            renders so the play button is available pre-execution. */}
+        <div className="clotho-node__footer">
+          <span className={`clotho-node__status-dot clotho-node__status-dot--${status ?? 'idle'}`} />
+          <span>{status ?? 'Idle'}</span>
+          {duration != null && <span>&middot; {(duration / 1000).toFixed(1)}s</span>}
+          {cost != null && (
+            <span>
+              &middot;{' '}
+              {LOCAL_MEDIA_PROVIDERS.has(config.provider) ? (
+                <span className="clotho-node__cost-local">local</span>
+              ) : (
+                `$${cost.toFixed(4)}`
+              )}
+            </span>
+          )}
+          <span style={{ flex: 1 }} />
+          <NodeRunButton nodeId={id} />
+        </div>
       </BaseNode>
     </div>
   );

@@ -1,4 +1,4 @@
-// Short one-line descriptions per built-in node type + media type + preset.
+// Short one-line descriptions per built-in node type + media type.
 // Used on the node body (teaser) and in the inspector's "About" section.
 
 export interface NodeDescription {
@@ -9,9 +9,7 @@ export interface NodeDescription {
 }
 
 // Keyed by a synthetic "kind" string:
-//   "agent"                              - base agent (Prompt Agent tile)
-//   "agent:<preset_category>"            - agent with a specific preset
-//                                           (script / crafter / generic)
+//   "agent"                              - agent node
 //   "media:<media_type>"                 - image / video / audio
 //   "tool:<tool_type>"                   - text_box / image_box / video_box
 const DESCRIPTIONS: Record<string, NodeDescription> = {
@@ -20,18 +18,6 @@ const DESCRIPTIONS: Record<string, NodeDescription> = {
     full: 'A generic text agent. Configure the prompt, system message, and provider in the inspector. Uses any registered LLM provider (OpenAI, Gemini, Ollama, etc.).',
     input: 'text (optional — the previous step\'s output, referenced as {{input}})',
     output: 'text',
-  },
-  'agent:script': {
-    teaser: 'Writes narrative scenes and voice-over scripts',
-    full: 'A script-writing personality that turns your idea into a structured scene or voice-over. Accepts optional context; returns prose text you can feed into a prompt crafter or TTS node.',
-    input: 'text (prior context, optional)',
-    output: 'text (script)',
-  },
-  'agent:crafter': {
-    teaser: 'Turns narrative text into image/video generation prompts',
-    full: 'Converts loose narrative description into a precise, detailed prompt for image or video models. Enumerates subject, lighting, composition, camera, and style automatically.',
-    input: 'text (scene description)',
-    output: 'image_prompt / video_prompt',
   },
   'media:image': {
     teaser: 'Generates an image from a text prompt',
@@ -75,8 +61,6 @@ export interface DescriptionLookupArgs {
   nodeType: 'agent' | 'media' | 'tool';
   mediaType?: string;      // image/video/audio
   toolType?: string;       // text_box / image_box / video_box
-  presetCategory?: string; // script / crafter / generic
-  presetDescription?: string; // if a personality preset has its own description
 }
 
 const FALLBACK: NodeDescription = {
@@ -87,21 +71,7 @@ const FALLBACK: NodeDescription = {
 };
 
 export function describeNode(args: DescriptionLookupArgs): NodeDescription {
-  // If this is an agent with a preset that provides its own description,
-  // prefer that — it's the most user-intentional source.
-  if (args.nodeType === 'agent' && args.presetDescription) {
-    return {
-      teaser: args.presetDescription.slice(0, 80),
-      full: args.presetDescription,
-      input: DESCRIPTIONS['agent'].input,
-      output: DESCRIPTIONS['agent'].output,
-    };
-  }
-
   let key: string = args.nodeType;
-  if (args.nodeType === 'agent' && args.presetCategory) {
-    key = `agent:${args.presetCategory}`;
-  }
   if (args.nodeType === 'media' && args.mediaType) {
     key = `media:${args.mediaType}`;
   }

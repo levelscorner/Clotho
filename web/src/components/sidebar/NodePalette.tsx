@@ -1,14 +1,12 @@
 import {
   useEffect,
   useRef,
-  useState,
   useCallback,
   type DragEvent,
   type ComponentType,
 } from 'react';
 import {
   Robot,
-  UserCircle,
   Wrench,
   MagicWand,
   ImageSquare,
@@ -20,7 +18,6 @@ import {
 } from 'phosphor-react';
 import type { IconProps, Icon } from 'phosphor-react';
 import type {
-  AgentPreset,
   AgentNodeConfig,
   ToolNodeConfig,
   MediaNodeConfig,
@@ -28,10 +25,8 @@ import type {
   NodeType,
   ToolType,
 } from '../../lib/types';
-import { api } from '../../lib/api';
 import { useUIStore } from '../../stores/uiStore';
 import { MobileHamburger, SmallScreenBanner, PhoneHint } from './MobileHamburger';
-import { presetIcon } from '../../lib/presetIcons';
 
 // ---------------------------------------------------------------------------
 // DnD helper
@@ -293,7 +288,6 @@ function TileIcon({ icon: Icon }: TileIconProps) {
 // ---------------------------------------------------------------------------
 
 export function NodePalette() {
-  const [presets, setPresets] = useState<AgentPreset[]>([]);
   const mobileOpen = useUIStore((s) => s.mobilePaletteOpen);
   const closeMobile = useUIStore((s) => s.closeMobilePalette);
   const activeSection = useUIStore((s) => s.activePaletteSection);
@@ -303,13 +297,6 @@ export function NodePalette() {
   // Mobile drawer shows all sections; desktop flyout shows only active.
   // When mobile is open we ignore activeSection entirely.
   const showAll = mobileOpen;
-
-  useEffect(() => {
-    api
-      .get<AgentPreset[]>('/presets')
-      .then((data) => setPresets(Array.isArray(data) ? data : []))
-      .catch(() => {});
-  }, []);
 
   // Escape to close mobile palette. Coordinates with global Escape handler
   // by only firing when the drawer is actually open.
@@ -453,42 +440,6 @@ export function NodePalette() {
           ))}
         </div>
         </>)}
-
-        {/* ---- PERSONALITY ---- */}
-        {(showAll || activeSection === 'personality') && presets.length > 0 && (
-          <>
-            <SectionHeader icon={UserCircle} label="Personality" />
-            <div className="clotho-tile-grid" style={gridStyle}>
-              {presets.map((preset) => {
-                const Icon = presetIcon(preset.name);
-                return (
-                  <div
-                    key={preset.id}
-                    draggable
-                    onDragStart={(e) =>
-                      onDragStart(e, {
-                        nodeType: 'agent',
-                        config: preset.config,
-                        ports: defaultAgentPorts(),
-                        label: preset.name,
-                      })
-                    }
-                    style={tileStyle}
-                    onMouseOver={(e) => handleHover(e, true)}
-                    onMouseOut={(e) => handleHover(e, false)}
-                    title={preset.name}
-                    data-testid={`palette-preset-${preset.name.toLowerCase().replace(/\s+/g, '-')}`}
-                  >
-                    <TileIcon icon={Icon} />
-                    <div className="clotho-tile-label" style={tileLabelStyle}>
-                      {preset.name}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </>
-        )}
 
         {/* ---- TOOLS ---- */}
         {(showAll || activeSection === 'tools') && (<>

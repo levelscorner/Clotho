@@ -7,7 +7,7 @@ import { create } from 'zustand';
 // Kept deliberately small. Each new surface adds its own boolean + actions.
 // ---------------------------------------------------------------------------
 
-export type PaletteSection = 'agent' | 'personality' | 'tools';
+export type PaletteSection = 'agent' | 'tools';
 
 interface UIState {
   templateGalleryOpen: boolean;

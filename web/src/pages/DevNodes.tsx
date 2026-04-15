@@ -2,7 +2,7 @@
    DevNodes — dev-only visual testbed at /dev/nodes.
 
    Shows every node kind × state in a tabbed grid so designers and engineers
-   can eyeball the full personality/state matrix without touching a real graph.
+   can eyeball the full state matrix without touching a real graph.
 
    Instantiation approach:
    -----------------------
@@ -50,9 +50,7 @@ import './DevNodes.css';
 // ---------------------------------------------------------------------------
 
 type TabId =
-  | 'agent-script'
-  | 'agent-crafter'
-  | 'agent-generic'
+  | 'agent'
   | 'media-image'
   | 'media-video'
   | 'media-audio'
@@ -64,9 +62,7 @@ interface Tab {
 }
 
 const TABS: Tab[] = [
-  { id: 'agent-script', label: 'Agent · Script' },
-  { id: 'agent-crafter', label: 'Agent · Crafter' },
-  { id: 'agent-generic', label: 'Agent · Generic' },
+  { id: 'agent', label: 'Agent' },
   { id: 'media-image', label: 'Media · Image' },
   { id: 'media-video', label: 'Media · Video' },
   { id: 'media-audio', label: 'Media · Audio' },
@@ -136,7 +132,7 @@ function renderAgentCards(fixtures: NodeFixture[]): React.ReactNode {
     <FixtureCard
       key={f.id}
       badge={STATE_BADGES[f.state]}
-      caption={`${f.id} · preset=${f.presetCategory}${
+      caption={`${f.id}${
         f.stepResult?.tokens_used != null
           ? ` · tokens=${f.stepResult.tokens_used}`
           : ''
@@ -182,7 +178,7 @@ function renderToolCards(fixtures: ToolNodeFixture[]): React.ReactNode {
 // ---------------------------------------------------------------------------
 
 function DevNodesInner() {
-  const [activeTab, setActiveTab] = useState<TabId>('agent-script');
+  const [activeTab, setActiveTab] = useState<TabId>('agent');
 
   // Seed the execution store with every fixture's step result once on mount.
   // The nodes read from this store via `stepResults.get(id)` so they'll pick
@@ -219,18 +215,8 @@ function DevNodesInner() {
 
   const content = useMemo(() => {
     switch (activeTab) {
-      case 'agent-script':
-        return renderAgentCards(
-          ALL_FIXTURES.agent.filter((f) => f.presetCategory === 'script'),
-        );
-      case 'agent-crafter':
-        return renderAgentCards(
-          ALL_FIXTURES.agent.filter((f) => f.presetCategory === 'crafter'),
-        );
-      case 'agent-generic':
-        return renderAgentCards(
-          ALL_FIXTURES.agent.filter((f) => f.presetCategory === 'generic'),
-        );
+      case 'agent':
+        return renderAgentCards(ALL_FIXTURES.agent);
       case 'media-image':
         return renderMediaCards(
           ALL_FIXTURES.media.filter((f) => f.mediaType === 'image'),

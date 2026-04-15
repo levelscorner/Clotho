@@ -1,4 +1,4 @@
-import { Robot, UserCircle, Wrench } from 'phosphor-react';
+import { Robot, Wrench } from 'phosphor-react';
 import type { Icon } from 'phosphor-react';
 import { useUIStore, type PaletteSection } from '../../stores/uiStore';
 
@@ -7,7 +7,7 @@ import { useUIStore, type PaletteSection } from '../../stores/uiStore';
 //
 // VS Code-style slim icon column. Always visible on desktop/tablet. Each
 // icon toggles a wider flyout panel that renders the section's palette
-// contents (Agent / Personality / Tools).
+// contents (Agent / Tools).
 //
 // Mobile keeps the hamburger + full drawer behavior — the rail is hidden
 // at phone breakpoint via CSS.
@@ -21,7 +21,6 @@ interface RailItem {
 
 const ITEMS: RailItem[] = [
   { section: 'agent', label: 'Agents', icon: Robot },
-  { section: 'personality', label: 'Personalities', icon: UserCircle },
   { section: 'tools', label: 'Tools', icon: Wrench },
 ];
 

@@ -28,20 +28,15 @@
   flex-direction: column;
 }
 
-/* React Flow's NodeResizer renders its own handles at corners/edges.
-   We tint them to match the amber accent and keep them subtle until
-   the node is selected. */
-.react-flow__resize-control.handle {
-  background: var(--accent) !important;
-  border: 1px solid var(--surface-raised) !important;
-  width: 8px !important;
-  height: 8px !important;
-  border-radius: 2px !important;
-}
-
+/* React Flow's NodeResizer renders handles at corners and edges. We keep
+   the drag hit-zones (so resize still works via corner/edge grab) but
+   hide the visible squares and lines — user preferred an invisible
+   affordance. The cursor still switches to resize when near an edge. */
+.react-flow__resize-control.handle,
 .react-flow__resize-control.line {
-  border-color: var(--accent) !important;
-  opacity: 0.5;
+  background: transparent !important;
+  border-color: transparent !important;
+  opacity: 0 !important;
 }
 
 /* Lift the subclass-rendered header to the top of the flex stack so our
@@ -286,6 +281,56 @@
 
 .clotho-node__prompt:focus {
   border-color: var(--accent);
+}
+
+/* Single-line variant (tool image_box / video_box URL field). */
+.clotho-node__prompt--inline {
+  min-height: 0;
+  flex: 0;
+  padding: 6px 8px;
+}
+
+/* Per-node run button — small amber play icon in the footer. When the node
+   is running the button is swapped for a spinner (no pointer-events). */
+.clotho-node__run {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  cursor: pointer;
+  transition: background var(--duration-fast), transform var(--duration-fast);
+}
+
+.clotho-node__run:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--surface-base);
+  transform: scale(1.08);
+}
+
+.clotho-node__run:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.clotho-node__run--progress {
+  border-color: transparent;
+  background: transparent;
+  cursor: default;
+}
+
+.clotho-node__run-spin {
+  animation: clotho-spin 1s linear infinite;
+}
+
+@keyframes clotho-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
 }
 
 .clotho-node__badge {

@@ -6,7 +6,7 @@ import * as path from 'path';
  *
  * Covers:
  *   1. AuthBanner dismiss → UnauthChip remains
- *   2. Sidebar 3 sections (Agent/Personality/Tools) + Phosphor icons
+ *   2. Sidebar 2 sections (Agent/Tools) + Phosphor icons
  *   3. EmptyCanvasState ghost cluster, CTA, ⌘K hint
  *   4. NodeActionsMenu ⋯ button, menu items, Lock badge + delete guard
  *   5. Port label prettification (image_prompt → "image prompt")
@@ -114,7 +114,7 @@ test.describe('AuthBanner + UnauthChip', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('ActivityRail + palette flyout', () => {
-  test('rail shows 3 icon buttons; palette is hidden by default', async ({ page }) => {
+  test('rail shows 2 icon buttons; palette is hidden by default', async ({ page }) => {
     const ok = await ensureCanvas(page);
     test.skip(!ok, 'Canvas not available');
 
@@ -122,9 +122,8 @@ test.describe('ActivityRail + palette flyout', () => {
     const rail = page.locator('[data-testid="activity-rail"]');
     await expect(rail).toBeVisible();
 
-    // Three icon buttons — Agent, Personality, Tools.
+    // Two icon buttons — Agent, Tools.
     await expect(page.locator('[data-testid="rail-agent"]')).toBeVisible();
-    await expect(page.locator('[data-testid="rail-personality"]')).toBeVisible();
     await expect(page.locator('[data-testid="rail-tools"]')).toBeVisible();
 
     // Palette panel is hidden by default (no section active → native `hidden`).
@@ -375,8 +374,8 @@ test.describe('Port label prettification', () => {
 
     // The Image Prompt Crafter node has an in_text (text) and out_prompt (image_prompt) port.
     const crafterNode = page.locator('.react-flow__node').filter({
-      has: page.locator('.clotho-node--agent-crafter'),
-    }).first();
+      has: page.locator('.clotho-node--agent'),
+    }).nth(1);
 
     const hasCrafter = await crafterNode.isVisible({ timeout: 2000 }).catch(() => false);
     if (!hasCrafter) {
@@ -430,7 +429,7 @@ test.describe('Node description teaser', () => {
 
     // Script Writer node should have a non-empty teaser.
     const scriptNode = page.locator('.react-flow__node').filter({
-      has: page.locator('.clotho-node--agent-script'),
+      has: page.locator('.clotho-node--agent'),
     }).first();
     const hasScrip = await scriptNode.isVisible({ timeout: 2000 }).catch(() => false);
     if (hasScrip) {
@@ -453,7 +452,7 @@ test.describe('Inspector group order', () => {
 
     // Click an agent node to open its inspector.
     const agentNode = page.locator('.react-flow__node').filter({
-      has: page.locator('.clotho-node--agent-script, .clotho-node--agent-crafter, .clotho-node--agent-generic'),
+      has: page.locator('.clotho-node--agent'),
     }).first();
 
     const hasAgent = await agentNode.isVisible({ timeout: 2000 }).catch(() => false);
@@ -514,7 +513,7 @@ test.describe('Agent node inline prompt + resize', () => {
     test.skip(!ok, 'Could not load nodes');
 
     const agentNode = page.locator('.react-flow__node').filter({
-      has: page.locator('.clotho-node--agent-script, .clotho-node--agent-crafter, .clotho-node--agent-generic'),
+      has: page.locator('.clotho-node--agent'),
     }).first();
 
     const hasAgent = await agentNode.isVisible({ timeout: 2000 }).catch(() => false);

@@ -1,17 +1,15 @@
 import { test, expect } from '@playwright/test';
 
 /**
- * Wave 2 — Node personality + Inspector groups.
+ * Wave 2 — Inspector groups + media node variants.
  *
  * Tests:
  *  1. Inspector collapsible groups: "Basics" open by default, "Advanced" collapsed.
- *  2. Script Writer preset → clotho-node--agent-script class.
- *  3. Image Prompt Crafter preset → clotho-node--agent-crafter class.
- *  4. Image media node → clotho-node--media-image + matte frame.
- *  5. Video media node → clotho-node--media-video + reel frames.
- *  6. Audio media node → clotho-node--media-audio + oscilloscope SVG.
- *  7. Image inspector: comfyui provider option present.
- *  8. Audio inspector: kokoro provider shows Kokoro voices.
+ *  2. Image media node → clotho-node--media-image + matte frame.
+ *  3. Video media node → clotho-node--media-video + reel frames.
+ *  4. Audio media node → clotho-node--media-audio + oscilloscope SVG.
+ *  5. Image inspector: comfyui provider option present.
+ *  6. Audio inspector: kokoro provider shows Kokoro voices.
  *
  * Setup: loads the sample pipeline (Script Writer → Image Prompt Crafter → Image)
  * via the "LOAD SAMPLE PIPELINE" button or an existing node in the pipeline.
@@ -57,7 +55,7 @@ test.describe('Inspector groups and node personality', () => {
     test.skip(!loaded, 'Could not load nodes into canvas');
 
     // Click an agent node to open inspector.
-    const agentNode = page.locator('.react-flow__node').filter({ has: page.locator('.clotho-node--agent-script, .clotho-node--agent-crafter, .clotho-node--agent-generic') }).first();
+    const agentNode = page.locator('.react-flow__node').filter({ has: page.locator('.clotho-node--agent') }).first();
     const hasAgent = await agentNode.isVisible({ timeout: 2000 }).catch(() => false);
 
     if (!hasAgent) {
@@ -77,33 +75,6 @@ test.describe('Inspector groups and node personality', () => {
     // Click Advanced summary → opens.
     await advanced.locator('summary').click();
     await expect(advanced).toHaveAttribute('open', /.*/);
-  });
-
-  test('Script Writer preset node renders with clotho-node--agent-script class', async ({
-    page,
-  }) => {
-    const loaded = await ensureNodesLoaded(page);
-    test.skip(!loaded, 'Could not load nodes into canvas');
-
-    // The sample pipeline includes a Script Writer node (preset_category='script').
-    const scriptNodes = page.locator('.clotho-node--agent-script');
-    const count = await scriptNodes.count();
-    test.skip(count === 0, 'No script agent nodes in current pipeline');
-
-    await expect(scriptNodes.first()).toBeVisible();
-  });
-
-  test('Image Prompt Crafter preset node renders with clotho-node--agent-crafter class', async ({
-    page,
-  }) => {
-    const loaded = await ensureNodesLoaded(page);
-    test.skip(!loaded, 'Could not load nodes into canvas');
-
-    const crafterNodes = page.locator('.clotho-node--agent-crafter');
-    const count = await crafterNodes.count();
-    test.skip(count === 0, 'No crafter agent nodes in current pipeline');
-
-    await expect(crafterNodes.first()).toBeVisible();
   });
 
   test('Image media node renders with matte frame (.clotho-node__matte)', async ({

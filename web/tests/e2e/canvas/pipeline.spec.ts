@@ -104,18 +104,16 @@ test.describe('Canvas states', () => {
 });
 
 test.describe('/dev/nodes testbed', () => {
-  test('7 tabs render with 5 fixture cards each', async ({ page }) => {
+  test('5 tabs render with fixture cards', async ({ page }) => {
     await page.goto('/dev/nodes');
     await page.waitForLoadState('networkidle');
 
-    // 7 tabs.
+    // 5 tabs.
     const tabs = page.locator('.dev-nodes__tab');
-    await expect(tabs).toHaveCount(7);
+    await expect(tabs).toHaveCount(5);
 
     const tabLabels = await tabs.allTextContents();
-    expect(tabLabels).toContain('Agent · Script');
-    expect(tabLabels).toContain('Agent · Crafter');
-    expect(tabLabels).toContain('Agent · Generic');
+    expect(tabLabels).toContain('Agent');
     expect(tabLabels).toContain('Media · Image');
     expect(tabLabels).toContain('Media · Video');
     expect(tabLabels).toContain('Media · Audio');
@@ -131,13 +129,11 @@ test.describe('/dev/nodes testbed', () => {
     await page.goto('/dev/nodes');
     await page.waitForLoadState('networkidle');
 
-    // Agent tabs: 5 states × 1 category = 5 cards each.
+    // Agent tab: 5 states = 5 cards.
     // Media tabs: 5 states × 1 media type = 5 cards each.
     // Tool tab: 5 states × 3 tool types = 15 cards (text_box, image_box, video_box).
     const tabExpectedCounts: Array<{ label: string; count: number }> = [
-      { label: 'Agent · Script', count: 5 },
-      { label: 'Agent · Crafter', count: 5 },
-      { label: 'Agent · Generic', count: 5 },
+      { label: 'Agent', count: 5 },
       { label: 'Media · Image', count: 5 },
       { label: 'Media · Video', count: 5 },
       { label: 'Media · Audio', count: 5 },

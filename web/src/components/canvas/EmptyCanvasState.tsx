@@ -46,7 +46,7 @@ function markDismissed(): void {
 // Sample pipeline: Script Writer → Image Prompt Crafter → Image media node
 // ---------------------------------------------------------------------------
 
-function scriptWriterPreset(): {
+function scriptWriterConfig(): {
   config: AgentNodeConfig;
   ports: Port[];
   label: string;
@@ -66,7 +66,6 @@ function scriptWriterPreset(): {
     },
     temperature: 0.8,
     max_tokens: 1024,
-    preset_category: 'script',
   };
   const ports: Port[] = [
     { id: 'in_text', name: 'Input', type: 'any', direction: 'input', required: false },
@@ -75,7 +74,7 @@ function scriptWriterPreset(): {
   return { config, ports, label: 'Script Writer' };
 }
 
-function imagePromptCrafterPreset(): {
+function imagePromptCrafterConfig(): {
   config: AgentNodeConfig;
   ports: Port[];
   label: string;
@@ -95,7 +94,6 @@ function imagePromptCrafterPreset(): {
     },
     temperature: 0.6,
     max_tokens: 512,
-    preset_category: 'crafter',
   };
   const ports: Port[] = [
     { id: 'in_text', name: 'Scene', type: 'text', direction: 'input', required: true },
@@ -104,7 +102,7 @@ function imagePromptCrafterPreset(): {
   return { config, ports, label: 'Image Prompt Crafter' };
 }
 
-function imageMediaPreset(): {
+function imageMediaConfig(): {
   config: MediaNodeConfig;
   ports: Port[];
   label: string;
@@ -127,9 +125,9 @@ function imageMediaPreset(): {
 function loadSamplePipeline(): void {
   const store = usePipelineStore.getState();
 
-  const script = scriptWriterPreset();
-  const crafter = imagePromptCrafterPreset();
-  const image = imageMediaPreset();
+  const script = scriptWriterConfig();
+  const crafter = imagePromptCrafterConfig();
+  const image = imageMediaConfig();
 
   store.addNode('agent', { x: 80, y: 160 }, script.config, script.ports, script.label);
   store.addNode('agent', { x: 360, y: 160 }, crafter.config, crafter.ports, crafter.label);

@@ -10,6 +10,8 @@ import type {
 import { usePipelineStore } from '../../stores/pipelineStore';
 import { api } from '../../lib/api';
 import { InspectorGroup } from './InspectorGroup';
+import { AboutNodeSection } from './AboutNodeSection';
+import { describeNode } from '../../lib/nodeDescriptions';
 import { OllamaModelDropdown } from './OllamaModelDropdown';
 
 // ---------------------------------------------------------------------------
@@ -217,6 +219,13 @@ export function AgentInspector({ nodeId, label, config, stepResult }: AgentInspe
           OPENROUTER_API_KEY.
         </div>
       )}
+
+      <AboutNodeSection
+        description={describeNode({
+          nodeType: 'agent',
+          presetCategory: config.preset_category,
+        })}
+      />
 
       <InspectorGroup title="Basics" defaultOpen>
         <div style={fieldGroup}>

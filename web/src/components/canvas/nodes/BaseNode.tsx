@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { Lock as LockIcon } from 'phosphor-react';
 import type { Port, ExecutionStatus } from '../../../lib/types';
@@ -6,6 +6,7 @@ import { PORT_TYPE_LABEL } from '../../../lib/portCompatibility';
 import { useExecutionStore } from '../../../stores/executionStore';
 import { usePipelineStore } from '../../../stores/pipelineStore';
 import { NodeActionsMenu } from './NodeActionsMenu';
+import { describeNode } from '../../../lib/nodeDescriptions';
 
 // ---------------------------------------------------------------------------
 // Props
@@ -49,6 +50,25 @@ function BaseNodeInner({
   const stepResult = useExecutionStore((s) => s.stepResults.get(id));
   const status: ExecutionStatus | undefined = stepResult?.status;
   const isLocked = usePipelineStore((s) => s.lockedNodes.has(id));
+
+  // Subscribe narrowly to this node's data so we can compute a teaser
+  // description without reaching into the subclass components.
+  const node = usePipelineStore((s) => s.nodes.find((n) => n.id === id));
+  const data = node?.data as Record<string, unknown> | undefined;
+
+  const teaser = useMemo(() => {
+    if (!data) return null;
+    const nt = data.nodeType as 'agent' | 'media' | 'tool' | undefined;
+    if (nt !== 'agent' && nt !== 'media' && nt !== 'tool') return null;
+    const cfg = (data.config ?? {}) as Record<string, unknown>;
+    return describeNode({
+      nodeType: nt,
+      mediaType: cfg.media_type as string | undefined,
+      toolType: cfg.tool_type as string | undefined,
+      presetCategory: cfg.preset_category as string | undefined,
+      presetDescription: data.description as string | undefined,
+    }).teaser;
+  }, [data]);
 
   const statusClass = status ? ` clotho-node--${status}` : '';
   const selectedClass = selected ? ' selected' : '';
@@ -97,6 +117,12 @@ function BaseNodeInner({
       })}
 
       {children}
+
+      {teaser && (
+        <p className="clotho-node__description" title={teaser}>
+          {teaser}
+        </p>
+      )}
 
       {/* Output handles + hover labels */}
       {outputPorts.map((port, i) => {

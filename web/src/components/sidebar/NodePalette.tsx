@@ -9,7 +9,6 @@ import {
 import {
   Robot,
   UserCircle,
-  FrameCorners,
   Wrench,
   MagicWand,
   ImageSquare,
@@ -25,7 +24,6 @@ import type {
   AgentNodeConfig,
   ToolNodeConfig,
   MediaNodeConfig,
-  MediaType,
   Port,
   NodeType,
   ToolType,
@@ -98,26 +96,44 @@ function toolPorts(toolType: ToolType): Port[] {
 }
 
 // ---------------------------------------------------------------------------
-// Media palette items
+// Agent palette items — four modalities (Prompt text-LLM + three media kinds).
+// The media tiles still produce MediaNode drag payloads; the palette simply
+// surfaces them as agent-modality choices for the user.
 // ---------------------------------------------------------------------------
 
-interface MediaItem {
+type AgentItemKind = 'prompt' | 'image' | 'audio' | 'video';
+
+interface AgentItem {
+  kind: AgentItemKind;
   label: string;
   icon: Icon;
-  mediaType: MediaType;
-  defaultConfig: MediaNodeConfig;
+  nodeType: NodeType;
+  config: AgentNodeConfig | MediaNodeConfig;
   ports: Port[];
+  dragLabel: string;
 }
 
-const MEDIA_ITEMS: MediaItem[] = [
+const AGENT_ITEMS: AgentItem[] = [
   {
-    label: 'Image Gen',
+    kind: 'prompt',
+    label: 'Prompt',
+    icon: MagicWand,
+    nodeType: 'agent',
+    config: blankAgentConfig(),
+    ports: defaultAgentPorts(),
+    dragLabel: 'Prompt Agent',
+  },
+  {
+    kind: 'image',
+    label: 'Image',
     icon: ImageSquare,
-    mediaType: 'image',
-    defaultConfig: {
+    nodeType: 'media',
+    // ComfyUI is the preferred local-first image provider; the inspector will
+    // heal away from it if the user hasn't configured the local endpoint.
+    config: {
       media_type: 'image',
-      provider: 'replicate',
-      model: 'flux-1.1-pro',
+      provider: 'comfyui',
+      model: 'flux1-schnell',
       prompt: '',
       aspect_ratio: '1:1',
       num_outputs: 1,
@@ -126,12 +142,33 @@ const MEDIA_ITEMS: MediaItem[] = [
       { id: 'in_image_prompt', name: 'Prompt', type: 'image_prompt', direction: 'input', required: true },
       { id: 'out_image', name: 'Image', type: 'image', direction: 'output', required: false },
     ],
+    dragLabel: 'Image',
   },
   {
-    label: 'Video Gen',
+    kind: 'audio',
+    label: 'Audio',
+    icon: SpeakerHigh,
+    nodeType: 'media',
+    // Kokoro is the preferred local TTS; voice 'af_bella' is its default.
+    config: {
+      media_type: 'audio',
+      provider: 'kokoro',
+      model: 'kokoro',
+      prompt: '',
+      voice: 'af_bella',
+    },
+    ports: [
+      { id: 'in_audio_prompt', name: 'Prompt', type: 'audio_prompt', direction: 'input', required: true },
+      { id: 'out_audio', name: 'Audio', type: 'audio', direction: 'output', required: false },
+    ],
+    dragLabel: 'Audio',
+  },
+  {
+    kind: 'video',
+    label: 'Video',
     icon: VideoCamera,
-    mediaType: 'video',
-    defaultConfig: {
+    nodeType: 'media',
+    config: {
       media_type: 'video',
       provider: 'replicate',
       model: 'stable-video-diffusion',
@@ -142,22 +179,7 @@ const MEDIA_ITEMS: MediaItem[] = [
       { id: 'in_video_prompt', name: 'Prompt', type: 'video_prompt', direction: 'input', required: true },
       { id: 'out_video', name: 'Video', type: 'video', direction: 'output', required: false },
     ],
-  },
-  {
-    label: 'Voice TTS',
-    icon: SpeakerHigh,
-    mediaType: 'audio',
-    defaultConfig: {
-      media_type: 'audio',
-      provider: 'openai',
-      model: 'tts-1',
-      prompt: '',
-      voice: 'alloy',
-    },
-    ports: [
-      { id: 'in_audio_prompt', name: 'Prompt', type: 'audio_prompt', direction: 'input', required: true },
-      { id: 'out_audio', name: 'Audio', type: 'audio', direction: 'output', required: false },
-    ],
+    dragLabel: 'Video',
   },
 ];
 
@@ -380,30 +402,34 @@ export function NodePalette() {
           </button>
         )}
 
-        {/* ---- AGENT ---- */}
+        {/* ---- AGENT ---- four modalities: Prompt / Image / Audio / Video */}
         <SectionHeader icon={Robot} label="Agent" />
         <div className="clotho-tile-grid" style={gridStyle}>
-          <div
-            draggable
-            className="clotho-tile-primary"
-            onDragStart={(e) =>
-              onDragStart(e, {
-                nodeType: 'agent',
-                config: blankAgentConfig(),
-                ports: defaultAgentPorts(),
-                label: 'Prompt Agent',
-              })
-            }
-            style={tileStyle}
-            onMouseOver={(e) => handleHover(e, true)}
-            onMouseOut={(e) => handleHover(e, false)}
-            title="Prompt Agent"
-          >
-            <TileIcon icon={MagicWand} />
-            <div className="clotho-tile-label" style={tileLabelStyle}>
-              Prompt Agent
+          {AGENT_ITEMS.map((item) => (
+            <div
+              key={item.kind}
+              draggable
+              className={item.kind === 'prompt' ? 'clotho-tile-primary' : undefined}
+              onDragStart={(e) =>
+                onDragStart(e, {
+                  nodeType: item.nodeType,
+                  config: item.config,
+                  ports: item.ports,
+                  label: item.dragLabel,
+                })
+              }
+              style={tileStyle}
+              onMouseOver={(e) => handleHover(e, true)}
+              onMouseOut={(e) => handleHover(e, false)}
+              title={item.dragLabel}
+              data-testid={`palette-agent-${item.kind}`}
+            >
+              <TileIcon icon={item.icon} />
+              <div className="clotho-tile-label" style={tileLabelStyle}>
+                {item.label}
+              </div>
             </div>
-          </div>
+          ))}
         </div>
 
         {/* ---- PERSONALITY ---- */}
@@ -441,34 +467,6 @@ export function NodePalette() {
             </div>
           </>
         )}
-
-        {/* ---- MEDIA ---- */}
-        <SectionHeader icon={FrameCorners} label="Media" />
-        <div className="clotho-tile-grid" style={gridStyle}>
-          {MEDIA_ITEMS.map((item) => (
-            <div
-              key={item.mediaType}
-              draggable
-              onDragStart={(e) =>
-                onDragStart(e, {
-                  nodeType: 'media',
-                  config: item.defaultConfig,
-                  ports: item.ports,
-                  label: item.label,
-                })
-              }
-              style={tileStyle}
-              onMouseOver={(e) => handleHover(e, true)}
-              onMouseOut={(e) => handleHover(e, false)}
-              title={item.label}
-            >
-              <TileIcon icon={item.icon} />
-              <div className="clotho-tile-label" style={tileLabelStyle}>
-                {item.label}
-              </div>
-            </div>
-          ))}
-        </div>
 
         {/* ---- TOOLS ---- */}
         <SectionHeader icon={Wrench} label="Tools" />

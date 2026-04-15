@@ -21,6 +21,19 @@
      rounded corners. Inner surfaces (header, body) retain their own radii. */
   overflow: visible;
   transition: box-shadow var(--duration-normal) var(--ease-out);
+  /* Flex column so we can insert a description line between the header
+     (rendered by subclass as children) and the rest of the body. The
+     `order` override below lifts the header to the top; the description
+     element sits just after it in source order. */
+  display: flex;
+  flex-direction: column;
+}
+
+/* Lift the subclass-rendered header to the top of the flex stack so our
+   BaseNode-owned description can slot in right beneath it without the
+   subclasses needing to know about it. */
+.clotho-node > .clotho-node__header {
+  order: -1;
 }
 
 /* When the node uses overflow: visible (so the hover-X and port labels can
@@ -201,6 +214,23 @@
 .clotho-node__subtitle {
   font-size: 11px;
   color: var(--text-muted);
+}
+
+/* One-line teaser beneath the header — "what does this node do?"
+   Rendered by BaseNode so all node variants get it for free. Clamped
+   to two lines so it never pushes the body out of shape. */
+.clotho-node__description {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  margin: 4px 0 0;
+  padding: 6px var(--space-lg) 8px;
+  border-bottom: 1px solid var(--surface-border);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 /* Node body --------------------------------------------------------------- */
@@ -477,7 +507,10 @@
 .react-flow__handle.clotho-handle {
   width: 12px !important;
   height: 12px !important;
-  background: var(--surface-base) !important;
+  /* Match the node body color so the ring's hollow center reads as a
+     tunnel carved into the node rather than a dot floating on the canvas.
+     (Previously --surface-base let canvas color bleed through.) */
+  background: var(--surface-raised) !important;
   border: 2px solid currentColor !important;
   border-radius: 50% !important;
   /* React Flow positions the handle via `top: ((i+1)/(n+1))*100%`, which
@@ -494,8 +527,10 @@
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 5px;
-  height: 5px;
+  /* Tighter inner dot so the ring reads like a carved tunnel rather than
+     a bullseye. */
+  width: 4px;
+  height: 4px;
   border-radius: 50%;
   background: currentColor;
   transform: translate(-50%, -50%);
@@ -503,7 +538,8 @@
 
 .react-flow__handle.clotho-handle:hover {
   transform: translateY(-50%) scale(1.25);
-  box-shadow: 0 0 8px currentColor;
+  /* Brighter glow on hover so the port feels live. */
+  box-shadow: 0 0 12px currentColor;
 }
 
 /* React Flow adds its own transform classes for left/right positioning;

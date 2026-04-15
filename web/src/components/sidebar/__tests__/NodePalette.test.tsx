@@ -81,35 +81,133 @@ describe('NodePalette', () => {
     vi.spyOn(api, 'get').mockResolvedValue(PRESET_FIXTURES as never);
   });
 
-  it('renders all 4 section headers', async () => {
+  // -----------------------------------------------------------------------
+  // Structure: three sections only — Agent / Personality / Tools.
+  // "Media" used to be a fourth section; it has been collapsed into Agent.
+  // -----------------------------------------------------------------------
+
+  it('renders exactly three section headers: Agent, Personality, Tools', async () => {
     render(<NodePalette />);
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: /agent/i })).toBeInTheDocument();
     });
     expect(screen.getByRole('heading', { name: /personality/i })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /media/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /tools/i })).toBeInTheDocument();
+    // Media header should no longer exist anywhere in the palette.
+    expect(screen.queryByRole('heading', { name: /^media$/i })).not.toBeInTheDocument();
   });
 
-  it('renders Prompt Agent tile under Agent', () => {
+  // -----------------------------------------------------------------------
+  // Agent section — four modality tiles with locked standard icons.
+  // We scope lookups by data-testid to avoid label collisions with Tools
+  // (which also has "Image" and "Video" tiles).
+  // -----------------------------------------------------------------------
+
+  it('renders all 4 Agent tiles: Prompt / Image / Audio / Video', () => {
     render(<NodePalette />);
-    expect(screen.getByText('Prompt Agent')).toBeInTheDocument();
-    expect(screen.queryByText('New Agent')).not.toBeInTheDocument();
+    expect(screen.getByTestId('palette-agent-prompt')).toBeInTheDocument();
+    expect(screen.getByTestId('palette-agent-image')).toBeInTheDocument();
+    expect(screen.getByTestId('palette-agent-audio')).toBeInTheDocument();
+    expect(screen.getByTestId('palette-agent-video')).toBeInTheDocument();
   });
 
-  it('renders all media tiles with their labels', () => {
+  it('Agent tiles show their scoped labels', () => {
     render(<NodePalette />);
-    expect(screen.getByText('Image Gen')).toBeInTheDocument();
-    expect(screen.getByText('Video Gen')).toBeInTheDocument();
-    expect(screen.getByText('Voice TTS')).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId('palette-agent-prompt')).getByText('Prompt'),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId('palette-agent-image')).getByText('Image'),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId('palette-agent-audio')).getByText('Audio'),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId('palette-agent-video')).getByText('Video'),
+    ).toBeInTheDocument();
   });
+
+  it('Agent tiles render SVG icons (MagicWand/ImageSquare/SpeakerHigh/VideoCamera)', () => {
+    render(<NodePalette />);
+    for (const kind of ['prompt', 'image', 'audio', 'video'] as const) {
+      const tile = screen.getByTestId(`palette-agent-${kind}`);
+      const svg = tile.querySelector('svg');
+      expect(svg, `expected svg icon inside palette-agent-${kind}`).not.toBeNull();
+    }
+  });
+
+  it('Prompt tile drag payload creates an agent node (not a media node)', () => {
+    render(<NodePalette />);
+    const tile = screen.getByTestId('palette-agent-prompt');
+    const dragEvent = new Event('dragstart', { bubbles: true }) as unknown as DragEvent;
+    let captured = '';
+    Object.defineProperty(dragEvent, 'dataTransfer', {
+      value: {
+        setData: (_type: string, data: string) => {
+          captured = data;
+        },
+        effectAllowed: '',
+      },
+    });
+    tile.dispatchEvent(dragEvent);
+    const parsed = JSON.parse(captured);
+    expect(parsed.nodeType).toBe('agent');
+    expect(parsed.label).toBe('Prompt Agent');
+  });
+
+  it('Agent Image/Audio/Video tiles drag media node payloads with correct defaults', () => {
+    render(<NodePalette />);
+    const cases: Array<{
+      kind: 'image' | 'audio' | 'video';
+      provider: string;
+      model: string;
+      voice?: string;
+    }> = [
+      { kind: 'image', provider: 'comfyui', model: 'flux1-schnell' },
+      { kind: 'audio', provider: 'kokoro', model: 'kokoro', voice: 'af_bella' },
+      { kind: 'video', provider: 'replicate', model: 'stable-video-diffusion' },
+    ];
+
+    for (const { kind, provider, model, voice } of cases) {
+      const tile = screen.getByTestId(`palette-agent-${kind}`);
+      const dragEvent = new Event('dragstart', { bubbles: true }) as unknown as DragEvent;
+      let captured = '';
+      Object.defineProperty(dragEvent, 'dataTransfer', {
+        value: {
+          setData: (_type: string, data: string) => {
+            captured = data;
+          },
+          effectAllowed: '',
+        },
+      });
+      tile.dispatchEvent(dragEvent);
+      const parsed = JSON.parse(captured);
+      expect(parsed.nodeType, `${kind} tile nodeType`).toBe('media');
+      expect(parsed.config.media_type, `${kind} media_type`).toBe(kind);
+      expect(parsed.config.provider, `${kind} provider`).toBe(provider);
+      expect(parsed.config.model, `${kind} model`).toBe(model);
+      if (voice) {
+        expect(parsed.config.voice, `${kind} voice`).toBe(voice);
+      }
+    }
+  });
+
+  // -----------------------------------------------------------------------
+  // Tools section — unchanged.
+  // -----------------------------------------------------------------------
 
   it('renders all tool tiles with their labels', () => {
     render(<NodePalette />);
+    // Both Agent and Tools have Image + Video labels; assert at least 2 of each.
+    expect(screen.getAllByText('Image').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('Video').length).toBeGreaterThanOrEqual(2);
+    // "Text" label only appears in the Tools section.
     expect(screen.getByText('Text')).toBeInTheDocument();
-    expect(screen.getByText('Image')).toBeInTheDocument();
-    expect(screen.getByText('Video')).toBeInTheDocument();
   });
+
+  // -----------------------------------------------------------------------
+  // Personality section — unchanged (presetIcons.ts lookup).
+  // -----------------------------------------------------------------------
 
   it('renders preset tiles with Phosphor SVG icons (no 2-letter chip)', async () => {
     render(<NodePalette />);

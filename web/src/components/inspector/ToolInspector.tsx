@@ -2,6 +2,8 @@ import { useCallback } from 'react';
 import type { ToolNodeConfig } from '../../lib/types';
 import { usePipelineStore } from '../../stores/pipelineStore';
 import { InspectorGroup } from './InspectorGroup';
+import { AboutNodeSection } from './AboutNodeSection';
+import { describeNode } from '../../lib/nodeDescriptions';
 
 // ---------------------------------------------------------------------------
 // Styles
@@ -64,6 +66,13 @@ export function ToolInspector({ nodeId, label, config }: ToolInspectorProps) {
 
   return (
     <div>
+      <AboutNodeSection
+        description={describeNode({
+          nodeType: 'tool',
+          toolType: (config as { tool_type?: string }).tool_type,
+        })}
+      />
+
       <InspectorGroup title="Basics" defaultOpen>
         <div style={fieldGroup}>
           <label style={labelStyle}>Label</label>

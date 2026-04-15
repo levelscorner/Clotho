@@ -3,6 +3,8 @@ import type { MediaNodeConfig, Credential, StepResult } from '../../lib/types';
 import { usePipelineStore } from '../../stores/pipelineStore';
 import { api } from '../../lib/api';
 import { InspectorGroup } from './InspectorGroup';
+import { AboutNodeSection } from './AboutNodeSection';
+import { describeNode } from '../../lib/nodeDescriptions';
 import { OllamaModelDropdown } from './OllamaModelDropdown';
 
 // ---------------------------------------------------------------------------
@@ -186,6 +188,13 @@ export function MediaInspector({ nodeId, label, config, stepResult }: MediaInspe
       >
         Media Configuration
       </div>
+
+      <AboutNodeSection
+        description={describeNode({
+          nodeType: 'media',
+          mediaType: config.media_type,
+        })}
+      />
 
       <InspectorGroup title="Basics" defaultOpen>
         <div style={fieldGroup}>

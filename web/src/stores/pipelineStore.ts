@@ -87,6 +87,8 @@ interface PipelineState {
   pipelineName: string;
   isDirty: boolean;
   selectedNodeId: string | null;
+  lockedNodes: Set<string>;
+  renamingNodeId: string | null;
 
   onViewportChange: (viewport: Viewport) => void;
   addNode: (
@@ -97,6 +99,11 @@ interface PipelineState {
     label?: string,
   ) => void;
   removeNodes: (ids: string[]) => void;
+  duplicateNode: (nodeId: string) => void;
+  toggleLock: (nodeId: string) => void;
+  startRename: (nodeId: string) => void;
+  commitRename: (nodeId: string, newLabel: string) => void;
+  cancelRename: () => void;
   updateNodeConfig: (
     nodeId: string,
     updater: (
@@ -129,6 +136,8 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
   pipelineName: 'Untitled Pipeline',
   isDirty: false,
   selectedNodeId: null,
+  lockedNodes: new Set<string>(),
+  renamingNodeId: null,
 
   onViewportChange: (viewport) => {
     set({ viewport });
@@ -179,9 +188,15 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
   },
 
   removeNodes: (ids) => {
-    const { nodes, edges } = get();
+    const { nodes, edges, lockedNodes } = get();
+    // Guard: never remove locked nodes (defense-in-depth — React Flow's
+    // `deletable: false` should already block this, but the store is the
+    // source of truth so we enforce here too).
+    const removable = ids.filter((id) => !lockedNodes.has(id));
+    if (removable.length === 0) return;
+
     pushHistory(nodes, edges);
-    const idSet = new Set(ids);
+    const idSet = new Set(removable);
     set((state) => ({
       nodes: state.nodes.filter((n) => !idSet.has(n.id)),
       edges: state.edges.filter(
@@ -193,6 +208,65 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
           ? null
           : state.selectedNodeId,
     }));
+  },
+
+  duplicateNode: (nodeId) => {
+    const { nodes, edges, lockedNodes } = get();
+    if (lockedNodes.has(nodeId)) return;
+    const source = nodes.find((n) => n.id === nodeId);
+    if (!source) return;
+
+    pushHistory(nodes, edges);
+
+    const newId = nextNodeId();
+    // Deep clone data so downstream config edits on the clone don't mutate
+    // the source's nested objects (prompts, ports, etc.)
+    const clonedData: PipelineNodeData = JSON.parse(
+      JSON.stringify(source.data),
+    ) as PipelineNodeData;
+    // Append " (copy)" to the label so users can tell them apart.
+    clonedData.label = `${source.data.label} (copy)`;
+
+    const clone: PipelineNode = {
+      id: newId,
+      type: source.type,
+      position: { x: source.position.x + 40, y: source.position.y + 40 },
+      data: clonedData,
+    };
+
+    set((state) => ({
+      nodes: [...state.nodes, clone],
+      isDirty: true,
+      selectedNodeId: newId,
+    }));
+  },
+
+  toggleLock: (nodeId) => {
+    set((state) => {
+      const next = new Set(state.lockedNodes);
+      if (next.has(nodeId)) {
+        next.delete(nodeId);
+      } else {
+        next.add(nodeId);
+      }
+      return { lockedNodes: next };
+    });
+  },
+
+  startRename: (nodeId) => {
+    set({ renamingNodeId: nodeId });
+  },
+
+  commitRename: (nodeId, newLabel) => {
+    const trimmed = newLabel.trim();
+    if (trimmed.length > 0) {
+      get().updateNodeLabel(nodeId, trimmed);
+    }
+    set({ renamingNodeId: null });
+  },
+
+  cancelRename: () => {
+    set({ renamingNodeId: null });
   },
 
   updateNodeConfig: (nodeId, updater) => {
@@ -398,6 +472,8 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
       viewport: loadedViewport,
       isDirty: false,
       selectedNodeId: null,
+      lockedNodes: new Set<string>(),
+      renamingNodeId: null,
     });
   },
 
@@ -415,6 +491,8 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
       pipelineName: 'Untitled Pipeline',
       isDirty: false,
       selectedNodeId: null,
+      lockedNodes: new Set<string>(),
+      renamingNodeId: null,
     });
   },
 }));

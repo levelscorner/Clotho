@@ -1,0 +1,75 @@
+/* ---------------------------------------------------------------------------
+   NodeActionsMenu — Radix dropdown, warm-amber themed
+   --------------------------------------------------------------------------- */
+
+.clotho-menu {
+  min-width: 180px;
+  padding: 4px;
+  background: var(--surface-overlay);
+  border: 1px solid var(--surface-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  font-family: var(--font-sans, system-ui, sans-serif);
+  z-index: 1000;
+}
+
+.clotho-menu__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--text-primary);
+  user-select: none;
+  outline: none;
+  transition:
+    background-color 100ms var(--ease-out),
+    color 100ms var(--ease-out);
+}
+
+.clotho-menu__item[data-highlighted] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.clotho-menu__item--danger[data-highlighted] {
+  background: rgba(248, 113, 113, 0.12);
+  color: var(--status-failed);
+}
+
+.clotho-menu__item[data-disabled] {
+  opacity: 0.4;
+  pointer-events: none;
+  cursor: default;
+}
+
+.clotho-menu__shortcut {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.3px;
+}
+
+.clotho-menu__item[data-highlighted] .clotho-menu__shortcut {
+  color: var(--accent);
+}
+
+.clotho-menu__item--danger[data-highlighted] .clotho-menu__shortcut {
+  color: var(--status-failed);
+}
+
+.clotho-menu__sep {
+  height: 1px;
+  background: var(--surface-border);
+  margin: 4px 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .clotho-menu__item {
+    transition: none;
+  }
+}

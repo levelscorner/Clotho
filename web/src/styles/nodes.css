@@ -45,9 +45,9 @@
   outline-offset: 2px;
 }
 
-/* Hover-X delete button --------------------------------------------------- */
+/* Hover actions menu button ---------------------------------------------- */
 
-.clotho-node__delete-btn {
+.clotho-node__menu-btn {
   position: absolute;
   top: 8px;
   right: 8px;
@@ -73,29 +73,38 @@
   z-index: 4;
 }
 
-.clotho-node__delete-icon {
-  display: block;
-  width: 12px;
-  height: 12px;
-}
-
-.react-flow__node:hover .clotho-node__delete-btn,
-.clotho-node:hover .clotho-node__delete-btn {
+.react-flow__node:hover .clotho-node__menu-btn,
+.clotho-node:hover .clotho-node__menu-btn,
+.clotho-node__menu-btn[data-state='open'] {
   opacity: 1;
   pointer-events: auto;
 }
 
-.clotho-node__delete-btn:hover {
-  background: var(--status-failed);
-  color: #fff;
-  border-color: var(--status-failed);
+.clotho-node__menu-btn:hover,
+.clotho-node__menu-btn[data-state='open'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
-.clotho-node__delete-btn:focus-visible {
+.clotho-node__menu-btn:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
   opacity: 1;
   pointer-events: auto;
+}
+
+/* Lock badge — always visible when node is locked */
+.clotho-node__lock-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  z-index: 4;
+  pointer-events: none;
 }
 
 /* Port labels — fade in on node hover ------------------------------------ */
@@ -139,7 +148,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .clotho-node__delete-btn,
+  .clotho-node__menu-btn,
   .clotho-port-label {
     transition: none;
   }

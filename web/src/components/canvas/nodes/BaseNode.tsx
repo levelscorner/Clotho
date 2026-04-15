@@ -1,9 +1,11 @@
-import React, { useCallback } from 'react';
+import React from 'react';
 import { Handle, Position } from '@xyflow/react';
+import { Lock as LockIcon } from 'phosphor-react';
 import type { Port, ExecutionStatus } from '../../../lib/types';
 import { PORT_TYPE_LABEL } from '../../../lib/portCompatibility';
 import { useExecutionStore } from '../../../stores/executionStore';
 import { usePipelineStore } from '../../../stores/pipelineStore';
+import { NodeActionsMenu } from './NodeActionsMenu';
 
 // ---------------------------------------------------------------------------
 // Props
@@ -17,9 +19,8 @@ interface BaseNodeProps {
   selected?: boolean;
   className?: string;
   /**
-   * Human-readable node label, used for the delete button's aria-label.
-   * Defaults to the node id if not provided, so legacy callers continue
-   * to work without a breaking change.
+   * Human-readable node label — forwarded to the actions menu for an
+   * accessible trigger label. Defaults to the node id if not provided.
    */
   label?: string;
 }
@@ -47,50 +48,27 @@ function BaseNodeInner({
 }: BaseNodeProps) {
   const stepResult = useExecutionStore((s) => s.stepResults.get(id));
   const status: ExecutionStatus | undefined = stepResult?.status;
+  const isLocked = usePipelineStore((s) => s.lockedNodes.has(id));
 
   const statusClass = status ? ` clotho-node--${status}` : '';
   const selectedClass = selected ? ' selected' : '';
+  const lockedClass = isLocked ? ' clotho-node--locked' : '';
   const extraClass = className ? ` ${className}` : '';
 
   const inputPorts = ports.filter((p) => p.direction === 'input');
   const outputPorts = ports.filter((p) => p.direction === 'output');
 
-  const handleDelete = useCallback(
-    (e: React.MouseEvent<HTMLButtonElement>) => {
-      e.stopPropagation();
-      e.preventDefault();
-      usePipelineStore.getState().removeNodes([id]);
-    },
-    [id],
-  );
-
-  const deleteLabel = `Delete node ${label ?? id}`;
-
   return (
     <div
-      className={`clotho-node clotho-node--${variant}${statusClass}${selectedClass}${extraClass}`}
+      className={`clotho-node clotho-node--${variant}${statusClass}${selectedClass}${lockedClass}${extraClass}`}
     >
-      <button
-        type="button"
-        className="clotho-node__delete-btn"
-        aria-label={deleteLabel}
-        onClick={handleDelete}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <svg
-          className="clotho-node__delete-icon"
-          viewBox="0 0 12 12"
-          aria-hidden="true"
-          focusable="false"
-        >
-          <path
-            d="M3 3 L9 9 M9 3 L3 9"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-          />
-        </svg>
-      </button>
+      {isLocked && (
+        <span className="clotho-node__lock-badge" aria-label="Locked" title="Locked">
+          <LockIcon size={14} weight="fill" />
+        </span>
+      )}
+
+      <NodeActionsMenu nodeId={id} label={label} />
 
       {/* Input handles + hover labels */}
       {inputPorts.map((port, i) => {

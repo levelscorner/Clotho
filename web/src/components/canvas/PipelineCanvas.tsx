@@ -6,6 +6,7 @@ import {
   useReactFlow,
   type NodeTypes,
   type Node,
+  type NodeChange,
   type Viewport,
 } from '@xyflow/react';
 import type {
@@ -55,6 +56,7 @@ interface DragPayload {
 export function PipelineCanvas() {
   const nodes = usePipelineStore((s) => s.nodes);
   const edges = usePipelineStore((s) => s.edges);
+  const lockedNodes = usePipelineStore((s) => s.lockedNodes);
   const stepResults = useExecutionStore((s) => s.stepResults);
 
   // Blocked node ids: downstream of any failed step result.
@@ -64,32 +66,65 @@ export function PipelineCanvas() {
   );
 
   // Inject .clotho-node-blocked class on any node flagged as downstream-blocked.
-  // This lets nodes-states.css style them without touching BaseNode/AgentNode.
+  // Also stamp draggable:false / deletable:false on locked nodes so React Flow
+  // blocks drag + native-delete interactions at the framework level.
   const decoratedNodes = useMemo(() => {
-    if (blockedNodeIds.size === 0) return nodes;
+    if (blockedNodeIds.size === 0 && lockedNodes.size === 0) return nodes;
     return nodes.map((n) => {
       const isBlocked = blockedNodeIds.has(n.id);
+      const isLocked = lockedNodes.has(n.id);
       const baseClass = n.className ?? '';
       const hasBlocked = baseClass.split(/\s+/).includes('clotho-node-blocked');
+
+      let next = n;
       if (isBlocked && !hasBlocked) {
-        return {
-          ...n,
-          className: `${baseClass} clotho-node-blocked`.trim(),
-        };
-      }
-      if (!isBlocked && hasBlocked) {
-        return {
-          ...n,
+        next = { ...next, className: `${baseClass} clotho-node-blocked`.trim() };
+      } else if (!isBlocked && hasBlocked) {
+        next = {
+          ...next,
           className: baseClass
             .split(/\s+/)
             .filter((c) => c !== 'clotho-node-blocked')
             .join(' '),
         };
       }
-      return n;
+
+      if (isLocked) {
+        next = { ...next, draggable: false, deletable: false };
+      } else if (n.draggable === false || n.deletable === false) {
+        // Strip the flags if a node was unlocked — otherwise React Flow keeps
+        // treating it as locked even after the store flips.
+        const { draggable: _d, deletable: _del, ...rest } = next;
+        void _d;
+        void _del;
+        next = rest as typeof next;
+      }
+
+      return next;
     });
-  }, [nodes, blockedNodeIds]);
-  const onNodesChange = usePipelineStore((s) => s.onNodesChange);
+  }, [nodes, blockedNodeIds, lockedNodes]);
+  const onNodesChangeStore = usePipelineStore((s) => s.onNodesChange);
+  const onNodesChange = useCallback(
+    (changes: NodeChange<Node<PipelineNodeData>>[]) => {
+      if (lockedNodes.size === 0) {
+        onNodesChangeStore(changes);
+        return;
+      }
+      // Filter out destructive changes for locked nodes — defense in depth on
+      // top of React Flow's draggable/deletable node flags.
+      const filtered = changes.filter((change) => {
+        if (change.type === 'remove' && lockedNodes.has(change.id)) {
+          return false;
+        }
+        if (change.type === 'position' && lockedNodes.has(change.id)) {
+          return false;
+        }
+        return true;
+      });
+      onNodesChangeStore(filtered);
+    },
+    [lockedNodes, onNodesChangeStore],
+  );
   const onEdgesChange = usePipelineStore((s) => s.onEdgesChange);
   const onConnect = usePipelineStore((s) => s.onConnect);
   const addNode = usePipelineStore((s) => s.addNode);
@@ -99,9 +134,13 @@ export function PipelineCanvas() {
   const onNodesDelete = useCallback(
     (deleted: Node<PipelineNodeData>[]) => {
       if (deleted.length === 0) return;
-      removeNodes(deleted.map((n) => n.id));
+      const removable = deleted
+        .map((n) => n.id)
+        .filter((id) => !lockedNodes.has(id));
+      if (removable.length === 0) return;
+      removeNodes(removable);
     },
-    [removeNodes],
+    [removeNodes, lockedNodes],
   );
   const onViewportChange = usePipelineStore((s) => s.onViewportChange);
   const storedViewport = usePipelineStore((s) => s.viewport);

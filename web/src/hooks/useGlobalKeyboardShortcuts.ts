@@ -1,14 +1,19 @@
 import { useEffect } from 'react';
 import { useUIStore } from '../stores/uiStore';
+import { usePipelineStore } from '../stores/pipelineStore';
 
 // ---------------------------------------------------------------------------
 // Global keyboard shortcuts
 //
 // Attach once near the root of the authenticated app. Current bindings:
-//   - ⌘K / Ctrl+K   toggle the template gallery (skipped while typing in an
-//                   input, textarea, or contenteditable element)
-//   - Escape        close the template gallery if it's open (other Escape
-//                   handlers, e.g. TemplateGallery's own, continue to run)
+//   - ⌘K / Ctrl+K   toggle the template gallery
+//   - ⌘D / Ctrl+D   duplicate the selected node
+//   - F2            rename the selected node (opens inline rename state)
+//   - ⌘L / Ctrl+L   toggle lock on the selected node
+//   - Escape        close the template gallery if it's open, or cancel rename
+//
+// All shortcuts are skipped while the user is typing in an input, textarea,
+// or contenteditable element so they don't hijack keystrokes mid-edit.
 // ---------------------------------------------------------------------------
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -19,21 +24,61 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return false;
 }
 
-// Exported for tests — the handler is pure over the event + store.
+// Exported for tests — the handler is pure over the event + stores.
 export function handleGlobalKeydown(e: KeyboardEvent): void {
+  const typing = isTypingTarget(e.target);
+  const mod = e.metaKey || e.ctrlKey;
+  const key = e.key.toLowerCase();
+
   // ⌘K on macOS, Ctrl+K elsewhere.
-  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-    if (isTypingTarget(e.target)) return;
+  if (mod && key === 'k') {
+    if (typing) return;
     e.preventDefault();
     useUIStore.getState().toggleTemplateGallery();
     return;
   }
 
+  // ⌘D — duplicate selected node
+  if (mod && key === 'd') {
+    if (typing) return;
+    const { selectedNodeId, duplicateNode } = usePipelineStore.getState();
+    if (!selectedNodeId) return;
+    e.preventDefault();
+    duplicateNode(selectedNodeId);
+    return;
+  }
+
+  // ⌘L — toggle lock on selected node
+  if (mod && key === 'l') {
+    if (typing) return;
+    const { selectedNodeId, toggleLock } = usePipelineStore.getState();
+    if (!selectedNodeId) return;
+    e.preventDefault();
+    toggleLock(selectedNodeId);
+    return;
+  }
+
+  // F2 — start rename on selected node
+  if (e.key === 'F2') {
+    if (typing) return;
+    const { selectedNodeId, startRename } = usePipelineStore.getState();
+    if (!selectedNodeId) return;
+    e.preventDefault();
+    startRename(selectedNodeId);
+    return;
+  }
+
   if (e.key === 'Escape') {
-    const state = useUIStore.getState();
-    if (state.templateGalleryOpen) {
+    const uiState = useUIStore.getState();
+    if (uiState.templateGalleryOpen) {
       e.preventDefault();
-      state.closeTemplateGallery();
+      uiState.closeTemplateGallery();
+      return;
+    }
+    const pipelineState = usePipelineStore.getState();
+    if (pipelineState.renamingNodeId) {
+      e.preventDefault();
+      pipelineState.cancelRename();
     }
   }
 }

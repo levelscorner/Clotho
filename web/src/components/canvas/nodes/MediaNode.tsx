@@ -3,6 +3,7 @@ import type { NodeProps, Node } from '@xyflow/react';
 import type { MediaNodeData, MediaNodeConfig, MediaType } from '../../../lib/types';
 import { BaseNode } from './BaseNode';
 import { NodeRunButton } from './NodeRunButton';
+import { NodeFolderButton } from './NodeFolderButton';
 import { LOCAL_MEDIA_PROVIDERS } from '../../inspector/MediaInspector';
 import { usePipelineStore } from '../../../stores/pipelineStore';
 import { useExecutionStore } from '../../../stores/executionStore';
@@ -226,6 +227,7 @@ function MediaNodeInner({ id, data, selected }: NodeProps<MediaNodeType>) {
             </span>
           )}
           <span style={{ flex: 1 }} />
+          <NodeFolderButton nodeId={id} />
           <NodeRunButton nodeId={id} />
         </div>
       </BaseNode>

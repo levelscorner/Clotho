@@ -178,6 +178,7 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
     es.addEventListener('step_completed', (e: MessageEvent) => {
       const env = parseEnvelope<{
         output?: unknown;
+        output_file?: string | null;
         tokens_used?: number | null;
         cost_usd?: number | null;
         duration_ms?: number | null;
@@ -188,6 +189,12 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
         node_id: env.node_id,
         status: 'completed',
         output: stringify(payload.output),
+        // Backend emits "" when there's no artifact; normalise to
+        // undefined so StepResult.output_file is a simple presence check.
+        output_file:
+          typeof payload.output_file === 'string' && payload.output_file !== ''
+            ? payload.output_file
+            : undefined,
         tokens_used: typeof payload.tokens_used === 'number' ? payload.tokens_used : undefined,
         cost: typeof payload.cost_usd === 'number' ? payload.cost_usd : undefined,
         duration_ms: typeof payload.duration_ms === 'number' ? payload.duration_ms : undefined,

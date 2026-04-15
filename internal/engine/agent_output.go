@@ -67,3 +67,36 @@ func writeAgentOutputFile(
 	}
 	return rel
 }
+
+// deriveOutputFileURL produces the clotho://file/{rel} URL the frontend
+// uses to reveal a node's artifact in Finder — or an empty string when
+// the node has nothing on disk.
+//
+//   - Agent: the caller hands in the rel path returned by
+//     writeAgentOutputFile and this function minks the URL.
+//   - Media: the executor has already stored a clotho://file/ URL as
+//     the node's output; we extract and return it unchanged.
+//   - Tool and everything else: empty string — no on-disk artifact.
+func deriveOutputFileURL(nodeType domain.NodeType, outputData json.RawMessage, agentRel string) string {
+	switch nodeType {
+	case domain.NodeTypeAgent:
+		if agentRel == "" {
+			return ""
+		}
+		return "clotho://file/" + agentRel
+	case domain.NodeTypeMedia:
+		if len(outputData) == 0 {
+			return ""
+		}
+		var s string
+		if err := json.Unmarshal(outputData, &s); err != nil {
+			return ""
+		}
+		if strings.HasPrefix(s, "clotho://file/") {
+			return s
+		}
+		return ""
+	default:
+		return ""
+	}
+}

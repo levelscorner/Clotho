@@ -3,6 +3,7 @@ import type { NodeProps, Node } from '@xyflow/react';
 import type { AgentNodeData, AgentNodeConfig } from '../../../lib/types';
 import { BaseNode } from './BaseNode';
 import { NodeRunButton } from './NodeRunButton';
+import { NodeFolderButton } from './NodeFolderButton';
 import { usePipelineStore } from '../../../stores/pipelineStore';
 import { useExecutionStore } from '../../../stores/executionStore';
 import { mapError } from '../../../lib/errorRemediation';
@@ -150,6 +151,7 @@ function AgentNodeInner({ id, data, selected }: NodeProps<AgentNodeType>) {
           {duration != null && <span>&middot; {(duration / 1000).toFixed(1)}s</span>}
           {cost != null && <span>&middot; ${cost.toFixed(4)}</span>}
           <span style={{ flex: 1 }} />
+          <NodeFolderButton nodeId={id} />
           <NodeRunButton nodeId={id} />
         </div>
       </BaseNode>

@@ -243,8 +243,9 @@ func (e *Engine) ExecuteWorkflow(ctx context.Context, execution domain.Execution
 		// generated script/prompt/etc. directly from their file manager.
 		// Non-fatal: media nodes already land on disk via their providers;
 		// for tool outputs we skip (they're usually pre-authored values).
+		var agentFileRel string
 		if node.Type == domain.NodeTypeAgent {
-			writeAgentOutputFile(ctx, e.fileStore, nodeLoc, node, stepOut.Data)
+			agentFileRel = writeAgentOutputFile(ctx, e.fileStore, nodeLoc, node, stepOut.Data)
 		}
 
 		// Update step result as completed
@@ -252,12 +253,19 @@ func (e *Engine) ExecuteWorkflow(ctx context.Context, execution domain.Execution
 			slog.Error("failed to update step result", "error", updateErr)
 		}
 
+		// Build an output_file URL the frontend can hand to Reveal-in-
+		// Finder. Media outputs already ship as clotho://file/... URLs;
+		// agents get one minted from the side-written .txt; tools leave
+		// it empty (no on-disk artifact).
+		outputFileURL := deriveOutputFileURL(node.Type, stepOut.Data, agentFileRel)
+
 		// Publish step completed with a named payload. Frontend reads each
 		// field by name from event.data — do NOT put the raw step output
 		// directly on Event.Data, or the frontend cannot tell it apart
 		// from metadata. See also the mirror shape in SSE handler tests.
 		completionPayload, err := json.Marshal(map[string]any{
 			"output":      json.RawMessage(stepOut.Data),
+			"output_file": outputFileURL, // "" when the node has no on-disk artifact
 			"tokens_used": stepOut.TokensUsed,
 			"cost_usd":    stepOut.CostUSD,
 			"duration_ms": durationMs,
@@ -527,19 +535,35 @@ func (e *Engine) RerunFromNode(ctx context.Context, execution domain.Execution, 
 
 		// Same side-write as ExecuteWorkflow — keep re-runs writing
 		// agent outputs so a "re-run from here" updates the .txt file.
+		var agentFileRel string
 		if node.Type == domain.NodeTypeAgent {
-			writeAgentOutputFile(ctx, e.fileStore, nodeLoc, node, stepOut.Data)
+			agentFileRel = writeAgentOutputFile(ctx, e.fileStore, nodeLoc, node, stepOut.Data)
 		}
 
 		if updateErr := e.stepResults.UpdateStatus(ctx, stepResult.ID, domain.StatusCompleted, stepOut.Data, nil, stepOut.TokensUsed, stepOut.CostUSD, &durationMs); updateErr != nil {
 			slog.Error("failed to update step result", "error", updateErr)
 		}
 
+		outputFileURL := deriveOutputFileURL(node.Type, stepOut.Data, agentFileRel)
+
+		// Use the same named-payload shape as ExecuteWorkflow so the
+		// frontend's SSE listener gets a consistent contract regardless
+		// of which engine path produced the event.
+		rerunStepPayload, err := json.Marshal(map[string]any{
+			"output":      json.RawMessage(stepOut.Data),
+			"output_file": outputFileURL,
+			"tokens_used": stepOut.TokensUsed,
+			"cost_usd":    stepOut.CostUSD,
+			"duration_ms": durationMs,
+		})
+		if err != nil {
+			rerunStepPayload = []byte("{}")
+		}
 		e.eventBus.Publish(execution.ID, Event{
 			Type:        EventStepCompleted,
 			ExecutionID: execution.ID,
 			NodeID:      node.ID,
-			Data:        stepOut.Data,
+			Data:        rerunStepPayload,
 			Timestamp:   time.Now(),
 		})
 	}

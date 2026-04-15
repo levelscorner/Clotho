@@ -324,6 +324,30 @@
   cursor: default;
 }
 
+/* Sibling of the run button — revealed when the node has an on-disk
+   artifact. Same size + shape so the footer row stays balanced. */
+.clotho-node__folder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  margin-right: 4px;
+  border-radius: 50%;
+  border: 1px solid var(--surface-border);
+  background: var(--surface-overlay);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--duration-fast), color var(--duration-fast), transform var(--duration-fast);
+}
+
+.clotho-node__folder:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+  transform: scale(1.08);
+}
+
 .clotho-node__run-spin {
   animation: clotho-spin 1s linear infinite;
 }

@@ -178,6 +178,14 @@ export interface StepResult {
   node_id: string;
   status: ExecutionStatus;
   output?: string;
+  /**
+   * Optional `clotho://file/…` URL pointing to an on-disk artifact for
+   * this node — set when an agent wrote its text to a .txt file or a
+   * media node produced an image/audio/video asset. Tools have none.
+   * Populated from the `output_file` field on the step_completed SSE
+   * event.
+   */
+  output_file?: string;
   error?: string;
   tokens_used?: number;
   cost?: number;

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/user/clotho/internal/domain"
 )
@@ -75,22 +76,24 @@ func TestFakeExecutor_ExecuteStream_ChunksAndCompletion(t *testing.T) {
 		t.Fatalf("chunks = %v, want [Hel lo, world]", got)
 	}
 
-	// Both channels close after the goroutine exits; select on the closed
-	// channels would race. Check the result channel explicitly for a value
-	// and confirm the err channel carries none.
-	r, ok := <-results
-	if !ok {
-		t.Fatal("result channel closed without value")
-	}
-	var s string
-	if err := json.Unmarshal(r.Data, &s); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	if s != "Hello, world" {
-		t.Fatalf("output = %q", s)
-	}
-	if e, ok := <-errs; ok {
-		t.Fatalf("unexpected err: %v", e)
+	// The fake deliberately leaves resultCh + errCh open (only chunkCh is
+	// closed) so the engine's `select { <-resultCh; <-errCh }` never races
+	// on two closed channels. Here: receive from resultCh with a select
+	// so we can detect "error fired on the success path" via errCh being
+	// ready with a value.
+	select {
+	case r := <-results:
+		var s string
+		if err := json.Unmarshal(r.Data, &s); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if s != "Hello, world" {
+			t.Fatalf("output = %q", s)
+		}
+	case e := <-errs:
+		t.Fatalf("unexpected err on success path: %v", e)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for result")
 	}
 }
 
@@ -113,15 +116,15 @@ func TestFakeExecutor_ExecuteStream_ErrorPath(t *testing.T) {
 		t.Fatalf("chunks received = %d, want 1", got)
 	}
 
-	if _, ok := <-results; ok {
-		t.Fatal("unexpected result on error path")
-	}
-	e, ok := <-errs
-	if !ok {
-		t.Fatal("err channel closed without value")
-	}
-	if !errors.Is(e, want) {
-		t.Fatalf("err = %v, want %v", e, want)
+	select {
+	case r := <-results:
+		t.Fatalf("unexpected result on error path: %+v", r)
+	case e := <-errs:
+		if !errors.Is(e, want) {
+			t.Fatalf("err = %v, want %v", e, want)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for err")
 	}
 }
 

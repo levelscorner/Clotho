@@ -119,9 +119,14 @@ func (f *FakeExecutor) ExecuteStream(
 	errCh := make(chan error, 1)
 
 	go func() {
+		// Only close the chunks channel — the engine drains it via `for
+		// chunk := range chunks`. Closing resultCh AND errCh would make
+		// the engine's `select { case <-resultCh; case <-errCh }` racy:
+		// both closed channels "ready" makes the select pick either one,
+		// silently dropping the actual outcome. Instead, send to the
+		// appropriate terminal channel and let the other stay open —
+		// Go's GC collects them once the goroutine exits.
 		defer close(chunkCh)
-		defer close(resultCh)
-		defer close(errCh)
 
 		s, ok := f.scripts[node.ID]
 		if !ok {

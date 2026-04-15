@@ -33,14 +33,30 @@ func (s *ProjectStore) Create(ctx context.Context, p domain.Project) (domain.Pro
 	return p, nil
 }
 
-func (s *ProjectStore) Get(ctx context.Context, id uuid.UUID) (domain.Project, error) {
+// Get returns a project only if it belongs to the given tenant. Used by
+// HTTP handlers. Callers inside the system should use GetByID instead.
+func (s *ProjectStore) Get(ctx context.Context, id, tenantID uuid.UUID) (domain.Project, error) {
+	var p domain.Project
+	err := s.pool.QueryRow(ctx,
+		`SELECT id, tenant_id, name, description, created_at, updated_at
+		 FROM projects WHERE id = $1 AND tenant_id = $2`, id, tenantID,
+	).Scan(&p.ID, &p.TenantID, &p.Name, &p.Description, &p.CreatedAt, &p.UpdatedAt)
+	if err != nil {
+		return domain.Project{}, fmt.Errorf("project get: %w", err)
+	}
+	return p, nil
+}
+
+// GetByID returns a project by ID without tenant scoping. Only for system-
+// internal callers (queue worker) that already hold a trusted ID.
+func (s *ProjectStore) GetByID(ctx context.Context, id uuid.UUID) (domain.Project, error) {
 	var p domain.Project
 	err := s.pool.QueryRow(ctx,
 		`SELECT id, tenant_id, name, description, created_at, updated_at
 		 FROM projects WHERE id = $1`, id,
 	).Scan(&p.ID, &p.TenantID, &p.Name, &p.Description, &p.CreatedAt, &p.UpdatedAt)
 	if err != nil {
-		return domain.Project{}, fmt.Errorf("project get: %w", err)
+		return domain.Project{}, fmt.Errorf("project get by id: %w", err)
 	}
 	return p, nil
 }
@@ -66,11 +82,12 @@ func (s *ProjectStore) List(ctx context.Context, tenantID uuid.UUID) ([]domain.P
 	return projects, rows.Err()
 }
 
-func (s *ProjectStore) Update(ctx context.Context, p domain.Project) error {
+// Update mutates a project only if it belongs to the given tenant.
+func (s *ProjectStore) Update(ctx context.Context, p domain.Project, tenantID uuid.UUID) error {
 	tag, err := s.pool.Exec(ctx,
 		`UPDATE projects SET name = $1, description = $2, updated_at = now()
-		 WHERE id = $3`,
-		p.Name, p.Description, p.ID,
+		 WHERE id = $3 AND tenant_id = $4`,
+		p.Name, p.Description, p.ID, tenantID,
 	)
 	if err != nil {
 		return fmt.Errorf("project update: %w", err)
@@ -81,9 +98,10 @@ func (s *ProjectStore) Update(ctx context.Context, p domain.Project) error {
 	return nil
 }
 
-func (s *ProjectStore) Delete(ctx context.Context, id uuid.UUID) error {
+// Delete removes a project only if it belongs to the given tenant.
+func (s *ProjectStore) Delete(ctx context.Context, id, tenantID uuid.UUID) error {
 	tag, err := s.pool.Exec(ctx,
-		`DELETE FROM projects WHERE id = $1`, id,
+		`DELETE FROM projects WHERE id = $1 AND tenant_id = $2`, id, tenantID,
 	)
 	if err != nil {
 		return fmt.Errorf("project delete: %w", err)

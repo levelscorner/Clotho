@@ -126,8 +126,11 @@ func (w *Worker) processNext(ctx context.Context) {
 		PipelineID:  pv.PipelineID,
 		ExecutionID: execution.ID,
 	}
+	// Worker is a system-internal caller — use GetByID (no tenant scoping)
+	// since the worker must be able to touch pipelines/projects regardless
+	// of which tenant originally queued the job.
 	if w.pipelines != nil {
-		pipeline, pipelineErr := w.pipelines.Get(ctx, pv.PipelineID)
+		pipeline, pipelineErr := w.pipelines.GetByID(ctx, pv.PipelineID)
 		if pipelineErr != nil {
 			slog.Warn("worker: load pipeline for storage location failed; routing to unsorted", "pipeline_id", pv.PipelineID, "error", pipelineErr)
 		} else {
@@ -135,7 +138,7 @@ func (w *Worker) processNext(ctx context.Context) {
 			loc.ProjectID = pipeline.ProjectID
 
 			if w.projects != nil {
-				project, projectErr := w.projects.Get(ctx, pipeline.ProjectID)
+				project, projectErr := w.projects.GetByID(ctx, pipeline.ProjectID)
 				if projectErr != nil {
 					slog.Warn("worker: load project for storage location failed; routing to unsorted", "project_id", pipeline.ProjectID, "error", projectErr)
 				} else {

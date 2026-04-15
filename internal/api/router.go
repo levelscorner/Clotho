@@ -37,6 +37,14 @@ type Deps struct {
 	OllamaURL         string
 	NoAuth            bool
 	AcknowledgeNoAuth bool
+
+	// Env is "dev" or "production"; gates relaxed CORS and other dev-only
+	// behaviors.
+	Env string
+
+	// AllowedOrigins is the exact list of origins permitted for CORS and
+	// the SSE Origin check. Empty means "same-origin only".
+	AllowedOrigins []string
 }
 
 // NewRouter creates a chi.Router with all middleware and routes mounted.
@@ -47,12 +55,17 @@ func NewRouter(deps Deps) chi.Router {
 	r.Use(middleware.RequestID)
 	r.Use(chimiddleware.Logger)
 	r.Use(chimiddleware.Recoverer)
+
+	// CORS — origins are driven by config, never hardcoded localhost in prod.
+	// An empty AllowedOrigins list means "same-origin only"; we set [] and
+	// chi/cors refuses cross-origin requests. AllowCredentials is disabled
+	// because the frontend uses Bearer tokens in a header, not cookies.
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:3000", "http://localhost:5173"},
+		AllowedOrigins:   deps.AllowedOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Request-ID"},
 		ExposedHeaders:   []string{"X-Request-ID"},
-		AllowCredentials: true,
+		AllowCredentials: false,
 		MaxAge:           300,
 	}))
 
@@ -84,8 +97,8 @@ func NewRouter(deps Deps) chi.Router {
 		}
 
 		handler.NewProjectHandler(deps.Projects).Routes(r)
-		handler.NewPipelineHandler(deps.Pipelines, deps.PipelineVersions).Routes(r)
-		execHandler := handler.NewExecutionHandler(deps.Executions, deps.PipelineVersions, deps.StepResults, deps.Queue)
+		handler.NewPipelineHandler(deps.Pipelines, deps.Projects, deps.PipelineVersions).Routes(r)
+		execHandler := handler.NewExecutionHandler(deps.Executions, deps.Pipelines, deps.PipelineVersions, deps.StepResults, deps.Queue)
 		execHandler.Routes(r)
 		r.Post("/api/executions/{id}/cancel", execHandler.Cancel)
 		handler.NewPresetHandler(deps.Presets).Routes(r)
@@ -93,7 +106,7 @@ func NewRouter(deps Deps) chi.Router {
 		handler.NewProviderHandler(deps.LLMRegistry).Routes(r)
 		handler.NewLLMHandler(deps.OllamaURL).Routes(r)
 		handler.NewTemplateHandler().Routes(r)
-		handler.NewStreamHandler(deps.EventBus).Routes(r)
+		handler.NewStreamHandler(deps.Executions, deps.EventBus, deps.AllowedOrigins).Routes(r)
 		if deps.FileStore != nil {
 			handler.NewFilesHandler(deps.FileStore).Routes(r)
 		}

@@ -17,6 +17,7 @@ import (
 // ExecutionHandler handles execution endpoints.
 type ExecutionHandler struct {
 	executions store.ExecutionStore
+	pipelines  store.PipelineStore
 	versions   store.PipelineVersionStore
 	steps      store.StepResultStore
 	queue      *queue.Queue
@@ -25,12 +26,14 @@ type ExecutionHandler struct {
 // NewExecutionHandler creates an ExecutionHandler.
 func NewExecutionHandler(
 	executions store.ExecutionStore,
+	pipelines store.PipelineStore,
 	versions store.PipelineVersionStore,
 	steps store.StepResultStore,
 	q *queue.Queue,
 ) *ExecutionHandler {
 	return &ExecutionHandler{
 		executions: executions,
+		pipelines:  pipelines,
 		versions:   versions,
 		steps:      steps,
 		queue:      q,
@@ -57,7 +60,16 @@ func (h *ExecutionHandler) Execute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse optional request body
+	tenantID := middleware.TenantIDFromContext(r.Context())
+
+	// Tenant isolation — refuse executes on pipelines the caller does not own.
+	// Responds 404 (not 403) to avoid ID enumeration.
+	if _, err := h.pipelines.Get(r.Context(), pipelineID, tenantID); err != nil {
+		writeError(w, http.StatusNotFound, "pipeline not found")
+		return
+	}
+
+	// Parse optional request body.
 	var req executeRequest
 	if r.Body != nil && r.ContentLength > 0 {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -66,16 +78,30 @@ func (h *ExecutionHandler) Execute(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	tenantID := middleware.TenantIDFromContext(r.Context())
-
-	// Get latest version for this pipeline
+	// Get latest version for this pipeline.
 	pv, err := h.versions.GetLatest(r.Context(), pipelineID)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "no versions found for pipeline")
 		return
 	}
 
-	// Create execution record
+	// Validate from_node_id (if provided) exists in the graph. An invalid ID
+	// would otherwise surface as a confusing runtime error in the worker.
+	if req.FromNodeID != "" {
+		found := false
+		for _, node := range pv.Graph.Nodes {
+			if node.ID == req.FromNodeID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			writeError(w, http.StatusBadRequest, "from_node_id is not a node in this pipeline")
+			return
+		}
+	}
+
+	// Create execution record.
 	execution, err := h.executions.Create(r.Context(), domain.Execution{
 		PipelineVersionID: pv.ID,
 		TenantID:          tenantID,
@@ -86,13 +112,17 @@ func (h *ExecutionHandler) Execute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Build payload with from_node_id if provided
+	// Build payload with from_node_id if provided.
 	var payload json.RawMessage
 	if req.FromNodeID != "" {
-		payload, _ = json.Marshal(map[string]string{"from_node_id": req.FromNodeID})
+		payload, err = json.Marshal(map[string]string{"from_node_id": req.FromNodeID})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to build execution payload")
+			return
+		}
 	}
 
-	// Enqueue for background processing
+	// Enqueue for background processing.
 	if err := h.queue.Submit(r.Context(), execution.ID, payload); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to enqueue execution")
 		return

@@ -21,22 +21,28 @@ type Job struct {
 	CreatedAt   time.Time       `json:"created_at"`
 }
 
-// ProjectStore manages project CRUD.
+// ProjectStore manages project CRUD. Get/Update/Delete require a tenant ID
+// so handlers cannot accidentally reach across tenants by UUID guess.
+// GetByID is the system-internal escape hatch for queue workers.
 type ProjectStore interface {
 	Create(ctx context.Context, p domain.Project) (domain.Project, error)
-	Get(ctx context.Context, id uuid.UUID) (domain.Project, error)
+	Get(ctx context.Context, id, tenantID uuid.UUID) (domain.Project, error)
+	GetByID(ctx context.Context, id uuid.UUID) (domain.Project, error)
 	List(ctx context.Context, tenantID uuid.UUID) ([]domain.Project, error)
-	Update(ctx context.Context, p domain.Project) error
-	Delete(ctx context.Context, id uuid.UUID) error
+	Update(ctx context.Context, p domain.Project, tenantID uuid.UUID) error
+	Delete(ctx context.Context, id, tenantID uuid.UUID) error
 }
 
-// PipelineStore manages pipeline CRUD.
+// PipelineStore manages pipeline CRUD. Get/Update/Delete enforce tenant
+// ownership via the pipeline → project → tenant chain. GetByID is the
+// system-internal escape hatch for the queue worker / engine.
 type PipelineStore interface {
 	Create(ctx context.Context, p domain.Pipeline) (domain.Pipeline, error)
-	Get(ctx context.Context, id uuid.UUID) (domain.Pipeline, error)
+	Get(ctx context.Context, id, tenantID uuid.UUID) (domain.Pipeline, error)
+	GetByID(ctx context.Context, id uuid.UUID) (domain.Pipeline, error)
 	ListByProject(ctx context.Context, projectID uuid.UUID) ([]domain.Pipeline, error)
-	Update(ctx context.Context, p domain.Pipeline) error
-	Delete(ctx context.Context, id uuid.UUID) error
+	Update(ctx context.Context, p domain.Pipeline, tenantID uuid.UUID) error
+	Delete(ctx context.Context, id, tenantID uuid.UUID) error
 }
 
 // PipelineVersionStore manages immutable pipeline version snapshots.

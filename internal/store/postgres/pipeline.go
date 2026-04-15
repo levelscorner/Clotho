@@ -35,14 +35,34 @@ func (s *PipelineStore) Create(ctx context.Context, p domain.Pipeline) (domain.P
 	return p, nil
 }
 
-func (s *PipelineStore) Get(ctx context.Context, id uuid.UUID) (domain.Pipeline, error) {
+// Get returns a pipeline only if it belongs to the given tenant (via the
+// pipeline → project → tenant chain). Used by HTTP handlers to enforce
+// tenant isolation. Callers inside the system that already hold a trusted
+// pipeline ID should use GetByID instead.
+func (s *PipelineStore) Get(ctx context.Context, id, tenantID uuid.UUID) (domain.Pipeline, error) {
+	var p domain.Pipeline
+	err := s.pool.QueryRow(ctx,
+		`SELECT p.id, p.project_id, p.name, p.description, p.created_at, p.updated_at
+		 FROM pipelines p
+		 JOIN projects pr ON pr.id = p.project_id
+		 WHERE p.id = $1 AND pr.tenant_id = $2`, id, tenantID,
+	).Scan(&p.ID, &p.ProjectID, &p.Name, &p.Description, &p.CreatedAt, &p.UpdatedAt)
+	if err != nil {
+		return domain.Pipeline{}, fmt.Errorf("pipeline get: %w", err)
+	}
+	return p, nil
+}
+
+// GetByID returns a pipeline by ID without tenant scoping. Only for system-
+// internal callers (queue worker, engine) that already hold a trusted ID.
+func (s *PipelineStore) GetByID(ctx context.Context, id uuid.UUID) (domain.Pipeline, error) {
 	var p domain.Pipeline
 	err := s.pool.QueryRow(ctx,
 		`SELECT id, project_id, name, description, created_at, updated_at
 		 FROM pipelines WHERE id = $1`, id,
 	).Scan(&p.ID, &p.ProjectID, &p.Name, &p.Description, &p.CreatedAt, &p.UpdatedAt)
 	if err != nil {
-		return domain.Pipeline{}, fmt.Errorf("pipeline get: %w", err)
+		return domain.Pipeline{}, fmt.Errorf("pipeline get by id: %w", err)
 	}
 	return p, nil
 }
@@ -68,11 +88,13 @@ func (s *PipelineStore) ListByProject(ctx context.Context, projectID uuid.UUID) 
 	return pipelines, rows.Err()
 }
 
-func (s *PipelineStore) Update(ctx context.Context, p domain.Pipeline) error {
+// Update mutates a pipeline only if it belongs to the given tenant.
+func (s *PipelineStore) Update(ctx context.Context, p domain.Pipeline, tenantID uuid.UUID) error {
 	tag, err := s.pool.Exec(ctx,
 		`UPDATE pipelines SET name = $1, description = $2, updated_at = now()
-		 WHERE id = $3`,
-		p.Name, p.Description, p.ID,
+		 WHERE id = $3
+		   AND project_id IN (SELECT id FROM projects WHERE tenant_id = $4)`,
+		p.Name, p.Description, p.ID, tenantID,
 	)
 	if err != nil {
 		return fmt.Errorf("pipeline update: %w", err)
@@ -83,9 +105,13 @@ func (s *PipelineStore) Update(ctx context.Context, p domain.Pipeline) error {
 	return nil
 }
 
-func (s *PipelineStore) Delete(ctx context.Context, id uuid.UUID) error {
+// Delete removes a pipeline only if it belongs to the given tenant.
+func (s *PipelineStore) Delete(ctx context.Context, id, tenantID uuid.UUID) error {
 	tag, err := s.pool.Exec(ctx,
-		`DELETE FROM pipelines WHERE id = $1`, id,
+		`DELETE FROM pipelines
+		 WHERE id = $1
+		   AND project_id IN (SELECT id FROM projects WHERE tenant_id = $2)`,
+		id, tenantID,
 	)
 	if err != nil {
 		return fmt.Errorf("pipeline delete: %w", err)

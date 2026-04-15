@@ -37,6 +37,15 @@ type Config struct {
 	// Requires AcknowledgeNoAuth to also be true (fail-closed).
 	NoAuth            bool
 	AcknowledgeNoAuth bool
+
+	// Env is "dev" or "production". Derived from NODE_ENV at Load time;
+	// used to gate relaxed CORS and other dev-only behaviors.
+	Env string
+
+	// AllowedOrigins controls CORS AllowedOrigins and the SSE Origin check.
+	// When empty, defaults depend on Env: dev → localhost:3000/5173; prod →
+	// same-origin only (no cross-origin requests).
+	AllowedOrigins []string
 }
 
 // prodMarkers are environment variables whose presence indicates a
@@ -127,6 +136,35 @@ func Load() (*Config, error) {
 	// Auth bypass (local-dev only; fail-closed via Validate)
 	cfg.NoAuth = isTruthy(getEnv("NO_AUTH", ""))
 	cfg.AcknowledgeNoAuth = isTruthy(getEnv("CLOTHO_ACKNOWLEDGE_NO_AUTH", ""))
+
+	// Environment + CORS/SSE allowed origins. Env is used downstream to
+	// refuse relaxed-CORS in production and to surface other dev-only
+	// behaviors. Defaults: prod when NODE_ENV=production or any prodMarker is
+	// set, otherwise dev.
+	cfg.Env = "dev"
+	if strings.EqualFold(os.Getenv("NODE_ENV"), "production") {
+		cfg.Env = "production"
+	} else {
+		for _, key := range prodMarkers {
+			if os.Getenv(key) != "" {
+				cfg.Env = "production"
+				break
+			}
+		}
+	}
+
+	if raw := strings.TrimSpace(os.Getenv("CLOTHO_ALLOWED_ORIGINS")); raw != "" {
+		for _, o := range strings.Split(raw, ",") {
+			if o = strings.TrimSpace(o); o != "" {
+				cfg.AllowedOrigins = append(cfg.AllowedOrigins, o)
+			}
+		}
+	} else if cfg.Env == "dev" {
+		cfg.AllowedOrigins = []string{
+			"http://localhost:3000",
+			"http://localhost:5173",
+		}
+	}
 
 	if err := cfg.Validate(); err != nil {
 		return nil, err

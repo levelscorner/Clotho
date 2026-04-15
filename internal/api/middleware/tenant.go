@@ -30,3 +30,10 @@ func TenantIDFromContext(ctx context.Context) uuid.UUID {
 	}
 	return id
 }
+
+// WithTenantIDForTest attaches a tenant ID to the context using the real
+// tenant context key. Test-only — production code should go through the
+// Auth middleware, which is the only place where trust is established.
+func WithTenantIDForTest(ctx context.Context, tenantID uuid.UUID) context.Context {
+	return context.WithValue(ctx, tenantContextKey, tenantID)
+}

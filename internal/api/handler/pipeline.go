@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/user/clotho/internal/api/dto"
+	"github.com/user/clotho/internal/api/middleware"
 	"github.com/user/clotho/internal/domain"
 	"github.com/user/clotho/internal/store"
 )
@@ -16,12 +17,13 @@ import (
 // PipelineHandler handles pipeline and pipeline version endpoints.
 type PipelineHandler struct {
 	pipelines store.PipelineStore
+	projects  store.ProjectStore
 	versions  store.PipelineVersionStore
 }
 
 // NewPipelineHandler creates a PipelineHandler.
-func NewPipelineHandler(pipelines store.PipelineStore, versions store.PipelineVersionStore) *PipelineHandler {
-	return &PipelineHandler{pipelines: pipelines, versions: versions}
+func NewPipelineHandler(pipelines store.PipelineStore, projects store.ProjectStore, versions store.PipelineVersionStore) *PipelineHandler {
+	return &PipelineHandler{pipelines: pipelines, projects: projects, versions: versions}
 }
 
 // Routes registers pipeline routes on the given router.
@@ -39,11 +41,31 @@ func (h *PipelineHandler) Routes(r chi.Router) {
 	r.Get("/api/pipelines/{id}/versions/{version}", h.GetVersion)
 }
 
+// assertPipelineOwned confirms the pipeline exists and belongs to the tenant.
+// Responds with 404 on miss and returns false; callers bail out immediately.
+func (h *PipelineHandler) assertPipelineOwned(w http.ResponseWriter, r *http.Request, pipelineID uuid.UUID) bool {
+	tenantID := middleware.TenantIDFromContext(r.Context())
+	if _, err := h.pipelines.Get(r.Context(), pipelineID, tenantID); err != nil {
+		writeError(w, http.StatusNotFound, "pipeline not found")
+		return false
+	}
+	return true
+}
+
 // Create handles POST /api/projects/{projectID}/pipelines.
 func (h *PipelineHandler) Create(w http.ResponseWriter, r *http.Request) {
 	projectID, err := uuid.Parse(chi.URLParam(r, "projectID"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid project ID")
+		return
+	}
+
+	// Confirm the project belongs to the caller's tenant before creating a
+	// pipeline under it — otherwise any authenticated user could create a
+	// pipeline in another tenant's project by guessing its UUID.
+	tenantID := middleware.TenantIDFromContext(r.Context())
+	if _, err := h.projects.Get(r.Context(), projectID, tenantID); err != nil {
+		writeError(w, http.StatusNotFound, "project not found")
 		return
 	}
 
@@ -79,6 +101,12 @@ func (h *PipelineHandler) ListByProject(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	tenantID := middleware.TenantIDFromContext(r.Context())
+	if _, err := h.projects.Get(r.Context(), projectID, tenantID); err != nil {
+		writeError(w, http.StatusNotFound, "project not found")
+		return
+	}
+
 	pipelines, err := h.pipelines.ListByProject(r.Context(), projectID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list pipelines")
@@ -96,7 +124,8 @@ func (h *PipelineHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pipeline, err := h.pipelines.Get(r.Context(), id)
+	tenantID := middleware.TenantIDFromContext(r.Context())
+	pipeline, err := h.pipelines.Get(r.Context(), id, tenantID)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "pipeline not found")
 		return
@@ -124,16 +153,18 @@ func (h *PipelineHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	tenantID := middleware.TenantIDFromContext(r.Context())
 	if err := h.pipelines.Update(r.Context(), domain.Pipeline{
 		ID:          id,
 		Name:        req.Name,
 		Description: req.Description,
-	}); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to update pipeline")
+	}, tenantID); err != nil {
+		// Update returns "not found" when the row doesn't match id+tenant.
+		writeError(w, http.StatusNotFound, "pipeline not found")
 		return
 	}
 
-	pipeline, err := h.pipelines.Get(r.Context(), id)
+	pipeline, err := h.pipelines.Get(r.Context(), id, tenantID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to get updated pipeline")
 		return
@@ -150,7 +181,8 @@ func (h *PipelineHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.pipelines.Delete(r.Context(), id); err != nil {
+	tenantID := middleware.TenantIDFromContext(r.Context())
+	if err := h.pipelines.Delete(r.Context(), id, tenantID); err != nil {
 		writeError(w, http.StatusNotFound, "pipeline not found")
 		return
 	}
@@ -163,6 +195,10 @@ func (h *PipelineHandler) SaveVersion(w http.ResponseWriter, r *http.Request) {
 	pipelineID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid pipeline ID")
+		return
+	}
+
+	if !h.assertPipelineOwned(w, r, pipelineID) {
 		return
 	}
 
@@ -205,6 +241,10 @@ func (h *PipelineHandler) ListVersions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !h.assertPipelineOwned(w, r, pipelineID) {
+		return
+	}
+
 	versions, err := h.versions.ListByPipeline(r.Context(), pipelineID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list versions")
@@ -219,6 +259,10 @@ func (h *PipelineHandler) GetVersion(w http.ResponseWriter, r *http.Request) {
 	pipelineID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid pipeline ID")
+		return
+	}
+
+	if !h.assertPipelineOwned(w, r, pipelineID) {
 		return
 	}
 
@@ -245,6 +289,10 @@ func (h *PipelineHandler) GetLatestVersion(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	if !h.assertPipelineOwned(w, r, pipelineID) {
+		return
+	}
+
 	pv, err := h.versions.GetLatest(r.Context(), pipelineID)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "no versions found")
@@ -256,10 +304,10 @@ func (h *PipelineHandler) GetLatestVersion(w http.ResponseWriter, r *http.Reques
 
 // pipelineExport is the JSON shape for pipeline export/import.
 type pipelineExport struct {
-	Name         string              `json:"name"`
-	Version      int                 `json:"version"`
-	ClothoVersion string             `json:"clotho_version"`
-	Graph        domain.PipelineGraph `json:"graph"`
+	Name          string               `json:"name"`
+	Version       int                  `json:"version"`
+	ClothoVersion string               `json:"clotho_version"`
+	Graph         domain.PipelineGraph `json:"graph"`
 }
 
 // Export handles GET /api/pipelines/{id}/export.
@@ -270,7 +318,8 @@ func (h *PipelineHandler) Export(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pipeline, err := h.pipelines.Get(r.Context(), pipelineID)
+	tenantID := middleware.TenantIDFromContext(r.Context())
+	pipeline, err := h.pipelines.Get(r.Context(), pipelineID, tenantID)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "pipeline not found")
 		return
@@ -331,9 +380,7 @@ func (h *PipelineHandler) Import(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify pipeline exists.
-	if _, err := h.pipelines.Get(r.Context(), pipelineID); err != nil {
-		writeError(w, http.StatusNotFound, "pipeline not found")
+	if !h.assertPipelineOwned(w, r, pipelineID) {
 		return
 	}
 

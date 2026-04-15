@@ -153,6 +153,8 @@ func main() {
 		OllamaURL:         cfg.OllamaURL,
 		NoAuth:            cfg.NoAuth,
 		AcknowledgeNoAuth: cfg.AcknowledgeNoAuth,
+		Env:               cfg.Env,
+		AllowedOrigins:    cfg.AllowedOrigins,
 	}
 
 	switch cfg.Mode {

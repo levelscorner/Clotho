@@ -80,7 +80,8 @@ func (h *ProjectHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	project, err := h.projects.Get(r.Context(), id)
+	tenantID := middleware.TenantIDFromContext(r.Context())
+	project, err := h.projects.Get(r.Context(), id, tenantID)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "project not found")
 		return
@@ -108,16 +109,17 @@ func (h *ProjectHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	tenantID := middleware.TenantIDFromContext(r.Context())
 	if err := h.projects.Update(r.Context(), domain.Project{
 		ID:          id,
 		Name:        req.Name,
 		Description: req.Description,
-	}); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to update project")
+	}, tenantID); err != nil {
+		writeError(w, http.StatusNotFound, "project not found")
 		return
 	}
 
-	project, err := h.projects.Get(r.Context(), id)
+	project, err := h.projects.Get(r.Context(), id, tenantID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to get updated project")
 		return
@@ -134,7 +136,8 @@ func (h *ProjectHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.projects.Delete(r.Context(), id); err != nil {
+	tenantID := middleware.TenantIDFromContext(r.Context())
+	if err := h.projects.Delete(r.Context(), id, tenantID); err != nil {
 		writeError(w, http.StatusNotFound, "project not found")
 		return
 	}

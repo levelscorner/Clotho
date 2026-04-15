@@ -1,5 +1,6 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { useTemplateStore } from '../../stores/templateStore';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 import type { TemplateSummary } from '../../lib/api';
 
 // ---------------------------------------------------------------------------
@@ -118,6 +119,9 @@ export function TemplateGallery({ onClose }: TemplateGalleryProps) {
   const fetchTemplates = useTemplateStore((s) => s.fetchTemplates);
   const applyTemplate = useTemplateStore((s) => s.applyTemplate);
 
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, true);
+
   useEffect(() => {
     if (templates.length === 0) {
       void fetchTemplates();
@@ -143,6 +147,7 @@ export function TemplateGallery({ onClose }: TemplateGalleryProps) {
 
   return (
     <div
+      ref={dialogRef}
       className="clotho-z-modal"
       role="dialog"
       aria-modal="true"

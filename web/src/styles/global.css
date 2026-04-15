@@ -17,10 +17,15 @@
   --surface-hover:   #2a2a32;
   --surface-border:  #2e2e38;
 
-  /* Text */
-  --text-primary:    #ececf0;
-  --text-secondary:  #8888a0;
-  --text-muted:      #55556a;
+  /* Text. Contrast vs --surface-base=#121216:
+     --text-primary  #ececf0 → 14.6:1 (AAA)
+     --text-secondary#8888a0 →  5.7:1 (AA normal)
+     --text-muted    #8a8aa0 →  5.9:1 (AA normal) — was #55556a / 2.9:1 (failing)
+     --text-muted-subtle #55556a → 2.9:1 kept for decorative/disabled only */
+  --text-primary:       #ececf0;
+  --text-secondary:     #8888a0;
+  --text-muted:         #8a8aa0;
+  --text-muted-subtle:  #55556a;
 
   /* Accent (warm amber) */
   --accent:          #e5a84b;

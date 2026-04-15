@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Credential } from '../../lib/types';
 import { api } from '../../lib/api';
 import { useAuthStore } from '../../stores/authStore';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 // ---------------------------------------------------------------------------
 // Styles (DESIGN.md tokens)
@@ -161,6 +162,9 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
 
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, true);
+
   const [credentials, setCredentials] = useState<Credential[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -230,7 +234,15 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
   );
 
   return (
-    <div className="clotho-z-modal" style={overlayStyle} onClick={onClose}>
+    <div
+      ref={dialogRef}
+      className="clotho-z-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Settings"
+      style={overlayStyle}
+      onClick={onClose}
+    >
       <div
         style={{ ...panelStyle, position: 'relative' }}
         onClick={(e) => e.stopPropagation()}

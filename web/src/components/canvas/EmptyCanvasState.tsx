@@ -44,6 +44,14 @@ function markDismissed(): void {
 
 // ---------------------------------------------------------------------------
 // Sample pipeline: Script Writer → Image Prompt Crafter → Image media node
+//
+// Defaults are LOCAL-FIRST — Ollama for LLMs and ComfyUI for image gen —
+// so "download Clotho → click Run" works with zero API keys configured.
+// If Ollama or ComfyUI aren't running the user sees a clear provider-not
+// -configured error (matches the error remediation catalog's hints).
+// Swap to paid providers (OpenAI / Replicate) via the inspector once you
+// want cloud quality; the previous defaults were the root cause of the
+// "constant step fails" report.
 // ---------------------------------------------------------------------------
 
 function scriptWriterConfig(): {
@@ -52,8 +60,8 @@ function scriptWriterConfig(): {
   label: string;
 } {
   const config: AgentNodeConfig = {
-    provider: 'openai',
-    model: 'gpt-4o',
+    provider: 'ollama',
+    model: 'llama3.1',
     role: {
       system_prompt:
         'You are a vivid, concise screenwriter who writes short cinematic scenes.',
@@ -80,8 +88,8 @@ function imagePromptCrafterConfig(): {
   label: string;
 } {
   const config: AgentNodeConfig = {
-    provider: 'openai',
-    model: 'gpt-4o',
+    provider: 'ollama',
+    model: 'llama3.1',
     role: {
       system_prompt:
         'You turn narrative scenes into vivid image generation prompts.',
@@ -109,10 +117,10 @@ function imageMediaConfig(): {
 } {
   const config: MediaNodeConfig = {
     media_type: 'image',
-    provider: 'replicate',
-    model: 'flux-1.1-pro',
+    provider: 'comfyui',
+    model: 'flux1-schnell',
     prompt: '',
-    aspect_ratio: '16:9',
+    aspect_ratio: '1:1',
     num_outputs: 1,
   };
   const ports: Port[] = [

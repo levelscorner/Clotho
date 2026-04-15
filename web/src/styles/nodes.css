@@ -113,7 +113,10 @@
   opacity: 0;
   pointer-events: none;
   transition: opacity 150ms var(--ease-out);
+  /* Sit above edges/connectors when they must overlap, and cast a subtle
+     shadow so text reads cleanly over the line. */
   z-index: 2;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
 }
 
 /* Anchor labels OUTSIDE the node body so they don't overlap preview text.
@@ -121,18 +124,18 @@
    edge. translate(-50%) on Y keeps the label vertically centered on the
    handle; the X translate shifts the entire box past the node border. */
 .clotho-port-label--in {
-  left: -8px;
+  left: -12px;
   transform: translate(-100%, -50%);
 }
 
 .clotho-port-label--out {
-  right: -8px;
+  right: -12px;
   transform: translate(100%, -50%);
 }
 
 .react-flow__node:hover .clotho-port-label,
 .clotho-node:hover .clotho-port-label {
-  opacity: 0.85;
+  opacity: 0.9;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -468,6 +471,10 @@
   background: var(--surface-base) !important;
   border: 2px solid currentColor !important;
   border-radius: 50% !important;
+  /* React Flow positions the handle via `top: ((i+1)/(n+1))*100%`, which
+     places the TOP edge at that coordinate. Translating up by half the
+     handle's height re-centers the dot on its expected connection line. */
+  transform: translateY(-50%);
   transition:
     transform 150ms var(--ease-out),
     box-shadow 150ms var(--ease-out);
@@ -486,7 +493,7 @@
 }
 
 .react-flow__handle.clotho-handle:hover {
-  transform: scale(1.25);
+  transform: translateY(-50%) scale(1.25);
   box-shadow: 0 0 8px currentColor;
 }
 

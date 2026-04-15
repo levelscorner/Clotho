@@ -104,14 +104,15 @@ function BaseNodeInner({
               position={Position.Left}
               className={`clotho-handle clotho-handle--${port.type}`}
               style={{ top }}
-              title={`${port.name} (${port.type})`}
+              title={`${port.name} · ${typeLabel}`}
             />
             <span
               className="clotho-port-label clotho-port-label--in"
               style={{ top }}
+              title={typeLabel}
               aria-hidden="true"
             >
-              {port.name} · {typeLabel}
+              {port.name}{port.required ? '*' : ''}
             </span>
           </React.Fragment>
         );
@@ -131,14 +132,15 @@ function BaseNodeInner({
               position={Position.Right}
               className={`clotho-handle clotho-handle--${port.type}`}
               style={{ top }}
-              title={`${port.name} (${port.type})`}
+              title={`${port.name} · ${typeLabel}`}
             />
             <span
               className="clotho-port-label clotho-port-label--out"
               style={{ top }}
+              title={typeLabel}
               aria-hidden="true"
             >
-              {port.name} · {typeLabel}
+              {port.name}{port.required ? '*' : ''}
             </span>
           </React.Fragment>
         );

@@ -4,7 +4,22 @@ import {
   useState,
   useCallback,
   type DragEvent,
+  type ComponentType,
 } from 'react';
+import {
+  Robot,
+  UserCircle,
+  FrameCorners,
+  Wrench,
+  MagicWand,
+  ImageSquare,
+  VideoCamera,
+  SpeakerHigh,
+  TextAa,
+  Image as ImageIcon,
+  FilmStrip,
+} from 'phosphor-react';
+import type { IconProps, Icon } from 'phosphor-react';
 import type {
   AgentPreset,
   AgentNodeConfig,
@@ -18,6 +33,7 @@ import type {
 import { api } from '../../lib/api';
 import { useUIStore } from '../../stores/uiStore';
 import { MobileHamburger, SmallScreenBanner, PhoneHint } from './MobileHamburger';
+import { presetIcon } from '../../lib/presetIcons';
 
 // ---------------------------------------------------------------------------
 // DnD helper
@@ -87,7 +103,7 @@ function toolPorts(toolType: ToolType): Port[] {
 
 interface MediaItem {
   label: string;
-  initials: string;
+  icon: Icon;
   mediaType: MediaType;
   defaultConfig: MediaNodeConfig;
   ports: Port[];
@@ -96,7 +112,7 @@ interface MediaItem {
 const MEDIA_ITEMS: MediaItem[] = [
   {
     label: 'Image Gen',
-    initials: 'Ig',
+    icon: ImageSquare,
     mediaType: 'image',
     defaultConfig: {
       media_type: 'image',
@@ -113,7 +129,7 @@ const MEDIA_ITEMS: MediaItem[] = [
   },
   {
     label: 'Video Gen',
-    initials: 'Vg',
+    icon: VideoCamera,
     mediaType: 'video',
     defaultConfig: {
       media_type: 'video',
@@ -129,7 +145,7 @@ const MEDIA_ITEMS: MediaItem[] = [
   },
   {
     label: 'Voice TTS',
-    initials: 'Tt',
+    icon: SpeakerHigh,
     mediaType: 'audio',
     defaultConfig: {
       media_type: 'audio',
@@ -151,28 +167,31 @@ const MEDIA_ITEMS: MediaItem[] = [
 
 interface ToolItem {
   label: string;
-  initials: string;
+  icon: Icon;
   toolType: ToolType;
 }
 
 const TOOLS: ToolItem[] = [
-  { label: 'Text', initials: 'Tx', toolType: 'text_box' },
-  { label: 'Image', initials: 'Im', toolType: 'image_box' },
-  { label: 'Video', initials: 'Vi', toolType: 'video_box' },
+  { label: 'Text', icon: TextAa, toolType: 'text_box' },
+  { label: 'Image', icon: ImageIcon, toolType: 'image_box' },
+  { label: 'Video', icon: FilmStrip, toolType: 'video_box' },
 ];
 
 // ---------------------------------------------------------------------------
-// Styles — preserved from the prior inline-styled version, minus layout
-// dimensions (those now live in AppShell.css / responsive.css).
+// Styles
 // ---------------------------------------------------------------------------
 
-const sectionLabel: React.CSSProperties = {
+const sectionLabelStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
   fontSize: 10,
   fontWeight: 600,
   textTransform: 'uppercase',
   letterSpacing: '0.8px',
   color: 'var(--text-muted)',
   padding: '12px 0 6px',
+  margin: 0,
 };
 
 const gridStyle: React.CSSProperties = {
@@ -185,7 +204,8 @@ const tileStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
-  gap: 4,
+  justifyContent: 'center',
+  gap: 6,
   padding: '10px 4px 8px',
   borderRadius: 'var(--radius-sm)',
   cursor: 'grab',
@@ -195,22 +215,19 @@ const tileStyle: React.CSSProperties = {
   transition: 'all var(--duration-fast)',
 };
 
-const tileIconStyle = (bg: string, color: string): React.CSSProperties => ({
+const tileIconWrapStyle: React.CSSProperties = {
   width: 32,
   height: 32,
   borderRadius: 'var(--radius-sm)',
-  background: bg,
-  color: color,
+  background: 'var(--surface-overlay)',
+  color: 'var(--accent)',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  fontSize: 12,
-  fontWeight: 700,
-  fontFamily: 'var(--font-mono)',
-});
+};
 
 const tileLabelStyle: React.CSSProperties = {
-  fontSize: 9,
+  fontSize: 10,
   color: 'var(--text-secondary)',
   textAlign: 'center',
   lineHeight: 1.3,
@@ -218,6 +235,36 @@ const tileLabelStyle: React.CSSProperties = {
   wordBreak: 'break-word',
   hyphens: 'auto',
 };
+
+// ---------------------------------------------------------------------------
+// Small helpers
+// ---------------------------------------------------------------------------
+
+interface SectionHeaderProps {
+  icon: Icon;
+  label: string;
+}
+
+function SectionHeader({ icon: Icon, label }: SectionHeaderProps) {
+  return (
+    <h3 style={sectionLabelStyle}>
+      <Icon size={14} weight="regular" aria-hidden="true" />
+      <span>{label}</span>
+    </h3>
+  );
+}
+
+interface TileIconProps {
+  icon: ComponentType<IconProps>;
+}
+
+function TileIcon({ icon: Icon }: TileIconProps) {
+  return (
+    <div style={tileIconWrapStyle}>
+      <Icon size={20} weight="regular" aria-hidden="true" />
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Component
@@ -271,27 +318,8 @@ export function NodePalette() {
   const handleHover = (e: React.MouseEvent, hovering: boolean) => {
     const el = e.currentTarget as HTMLDivElement;
     el.style.borderColor = hovering ? 'var(--surface-border)' : 'transparent';
-    el.style.background = hovering ? 'var(--surface-hover)' : 'var(--surface-raised)';
+    el.style.background = hovering ? 'var(--accent-soft)' : 'var(--surface-raised)';
   };
-
-  // Generate unique initials from preset name
-  const getInitials = useCallback((name: string, allNames: string[]) => {
-    const words = name.split(/\s+/).filter(Boolean);
-    if (words.length < 2) return name.slice(0, 2);
-
-    const simple = `${words[0][0].toUpperCase()}${words[1][0].toLowerCase()}`;
-
-    const hasCollision = allNames.some((other) => {
-      if (other === name) return false;
-      const ow = other.split(/\s+/).filter(Boolean);
-      if (ow.length < 2) return false;
-      return `${ow[0][0].toUpperCase()}${ow[1][0].toLowerCase()}` === simple;
-    });
-
-    if (!hasCollision) return simple;
-
-    return words[0].slice(0, 2).charAt(0).toUpperCase() + words[0].slice(1, 2).toLowerCase();
-  }, []);
 
   // When mobile-open, the aside behaves like a dialog. Desktop/tablet keep
   // the landmark-style aside semantics.
@@ -353,7 +381,7 @@ export function NodePalette() {
         )}
 
         {/* ---- AGENT ---- */}
-        <h3 style={sectionLabel}>Agent</h3>
+        <SectionHeader icon={Robot} label="Agent" />
         <div className="clotho-tile-grid" style={gridStyle}>
           <div
             draggable
@@ -363,89 +391,87 @@ export function NodePalette() {
                 nodeType: 'agent',
                 config: blankAgentConfig(),
                 ports: defaultAgentPorts(),
-                label: 'Agent',
+                label: 'Prompt Agent',
               })
             }
-            style={{ ...tileStyle, gridColumn: 'span 3', flexDirection: 'row', gap: 8, padding: '8px 10px' }}
+            style={tileStyle}
             onMouseOver={(e) => handleHover(e, true)}
             onMouseOut={(e) => handleHover(e, false)}
+            title="Prompt Agent"
           >
-            <div style={tileIconStyle('var(--accent-soft)', 'var(--accent)')}>+</div>
-            <div className="clotho-tile-primary-text">
-              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>New Agent</div>
-              <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>Drag to canvas</div>
+            <TileIcon icon={MagicWand} />
+            <div className="clotho-tile-label" style={tileLabelStyle}>
+              Prompt Agent
             </div>
           </div>
         </div>
 
-        {/* ---- PERSONALITIES ---- */}
+        {/* ---- PERSONALITY ---- */}
         {presets.length > 0 && (
           <>
-            <h3 style={{ ...sectionLabel, fontSize: 9 }}>Personalities</h3>
+            <SectionHeader icon={UserCircle} label="Personality" />
             <div className="clotho-tile-grid" style={gridStyle}>
-              {presets.map((preset) => (
-                <div
-                  key={preset.id}
-                  draggable
-                  onDragStart={(e) =>
-                    onDragStart(e, {
-                      nodeType: 'agent',
-                      config: preset.config,
-                      ports: defaultAgentPorts(),
-                      label: preset.name,
-                    })
-                  }
-                  style={tileStyle}
-                  onMouseOver={(e) => handleHover(e, true)}
-                  onMouseOut={(e) => handleHover(e, false)}
-                  title={preset.name}
-                >
-                  <div style={tileIconStyle('var(--accent-soft)', 'var(--accent)')}>
-                    {getInitials(preset.name, presets.map((p) => p.name))}
+              {presets.map((preset) => {
+                const Icon = presetIcon(preset.name);
+                return (
+                  <div
+                    key={preset.id}
+                    draggable
+                    onDragStart={(e) =>
+                      onDragStart(e, {
+                        nodeType: 'agent',
+                        config: preset.config,
+                        ports: defaultAgentPorts(),
+                        label: preset.name,
+                      })
+                    }
+                    style={tileStyle}
+                    onMouseOver={(e) => handleHover(e, true)}
+                    onMouseOut={(e) => handleHover(e, false)}
+                    title={preset.name}
+                    data-testid={`palette-preset-${preset.name.toLowerCase().replace(/\s+/g, '-')}`}
+                  >
+                    <TileIcon icon={Icon} />
+                    <div className="clotho-tile-label" style={tileLabelStyle}>
+                      {preset.name}
+                    </div>
                   </div>
-                  <div className="clotho-tile-label" style={tileLabelStyle}>{preset.name}</div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </>
         )}
 
         {/* ---- MEDIA ---- */}
-        <h3 style={sectionLabel}>Media</h3>
+        <SectionHeader icon={FrameCorners} label="Media" />
         <div className="clotho-tile-grid" style={gridStyle}>
-          {MEDIA_ITEMS.map((item) => {
-            const colorMap: Record<MediaType, { bg: string; fg: string }> = {
-              image: { bg: 'rgba(245, 158, 11, 0.15)', fg: 'var(--port-image)' },
-              video: { bg: 'rgba(239, 68, 68, 0.15)', fg: 'var(--port-video)' },
-              audio: { bg: 'rgba(6, 182, 212, 0.15)', fg: 'var(--port-audio)' },
-            };
-            const c = colorMap[item.mediaType];
-            return (
-              <div
-                key={item.mediaType}
-                draggable
-                onDragStart={(e) =>
-                  onDragStart(e, {
-                    nodeType: 'media',
-                    config: item.defaultConfig,
-                    ports: item.ports,
-                    label: item.label,
-                  })
-                }
-                style={tileStyle}
-                onMouseOver={(e) => handleHover(e, true)}
-                onMouseOut={(e) => handleHover(e, false)}
-                title={item.label}
-              >
-                <div style={tileIconStyle(c.bg, c.fg)}>{item.initials}</div>
-                <div className="clotho-tile-label" style={tileLabelStyle}>{item.label}</div>
+          {MEDIA_ITEMS.map((item) => (
+            <div
+              key={item.mediaType}
+              draggable
+              onDragStart={(e) =>
+                onDragStart(e, {
+                  nodeType: 'media',
+                  config: item.defaultConfig,
+                  ports: item.ports,
+                  label: item.label,
+                })
+              }
+              style={tileStyle}
+              onMouseOver={(e) => handleHover(e, true)}
+              onMouseOut={(e) => handleHover(e, false)}
+              title={item.label}
+            >
+              <TileIcon icon={item.icon} />
+              <div className="clotho-tile-label" style={tileLabelStyle}>
+                {item.label}
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
 
         {/* ---- TOOLS ---- */}
-        <h3 style={sectionLabel}>Tools</h3>
+        <SectionHeader icon={Wrench} label="Tools" />
         <div className="clotho-tile-grid" style={gridStyle}>
           {TOOLS.map((item) => (
             <div
@@ -464,10 +490,10 @@ export function NodePalette() {
               onMouseOut={(e) => handleHover(e, false)}
               title={item.label}
             >
-              <div style={tileIconStyle('rgba(136, 136, 160, 0.15)', 'var(--text-secondary)')}>
-                {item.initials}
+              <TileIcon icon={item.icon} />
+              <div className="clotho-tile-label" style={tileLabelStyle}>
+                {item.label}
               </div>
-              <div className="clotho-tile-label" style={tileLabelStyle}>{item.label}</div>
             </div>
           ))}
         </div>

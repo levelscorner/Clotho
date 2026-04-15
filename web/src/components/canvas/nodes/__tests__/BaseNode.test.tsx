@@ -100,19 +100,35 @@ describe('BaseNode', () => {
     expect(btn).toBeInTheDocument();
   });
 
-  it('renders port labels with pretty type names for each port', () => {
+  it('renders port labels with name plus required-asterisk only (type hidden in text)', () => {
     const { container } = renderBaseNode();
     const labels = container.querySelectorAll('.clotho-port-label');
     // One label per port (2 inputs + 1 output = 3)
     expect(labels.length).toBe(TEST_PORTS.length);
 
     const texts = Array.from(labels).map((l) => l.textContent ?? '');
-    // "Input · text" (from text port)
-    expect(texts.some((t) => t.includes('Input') && t.includes('text'))).toBe(true);
-    // "Reference · image prompt" (pretty name, not image_prompt)
-    expect(texts.some((t) => t.includes('Reference') && t.includes('image prompt'))).toBe(true);
-    // "Script · text"
-    expect(texts.some((t) => t.includes('Script') && t.includes('text'))).toBe(true);
+    // Required input "Input" (required: true) → "Input*"
+    expect(texts).toContain('Input*');
+    // Optional input "Reference" (required: false) → "Reference"
+    expect(texts).toContain('Reference');
+    // Optional output "Script" → "Script"
+    expect(texts).toContain('Script');
+
+    // Visible label text must NOT contain the raw internal type or the
+    // prettified type string — that's tooltip-only now.
+    texts.forEach((t) => {
+      expect(t).not.toMatch(/image[_ ]prompt/);
+      expect(t).not.toContain('·');
+    });
+  });
+
+  it('exposes the port type via tooltip on the label for power users', () => {
+    const { container } = renderBaseNode();
+    const labels = container.querySelectorAll('.clotho-port-label');
+    const titles = Array.from(labels).map((l) => l.getAttribute('title'));
+    // Pretty label from PORT_TYPE_LABEL map
+    expect(titles).toContain('text');
+    expect(titles).toContain('image prompt');
   });
 
   it('splits port labels across input and output sides', () => {

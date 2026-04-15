@@ -239,6 +239,14 @@ func (e *Engine) ExecuteWorkflow(ctx context.Context, execution domain.Execution
 		// Save output
 		nodeOutputs[node.ID] = stepOut.Data
 
+		// Side-write agent text output to disk so the user can open the
+		// generated script/prompt/etc. directly from their file manager.
+		// Non-fatal: media nodes already land on disk via their providers;
+		// for tool outputs we skip (they're usually pre-authored values).
+		if node.Type == domain.NodeTypeAgent {
+			writeAgentOutputFile(ctx, e.fileStore, nodeLoc, node, stepOut.Data)
+		}
+
 		// Update step result as completed
 		if updateErr := e.stepResults.UpdateStatus(ctx, stepResult.ID, domain.StatusCompleted, stepOut.Data, nil, stepOut.TokensUsed, stepOut.CostUSD, &durationMs); updateErr != nil {
 			slog.Error("failed to update step result", "error", updateErr)
@@ -276,9 +284,23 @@ func (e *Engine) ExecuteWorkflow(ctx context.Context, execution domain.Execution
 	// the DB still has every step result and the user can re-export later.
 	e.writeManifestBestEffort(ctx, execution, graph, baseLoc, sortedNodes, startTime, totalCost, totalTokens)
 
+	// Surface the artifact directory so the frontend can offer an
+	// "Open folder" action that reveals all outputs (agent .txt files,
+	// media assets, manifest.json) in one place.
+	completedPayload, err := json.Marshal(map[string]any{
+		"total_cost":   totalCost,
+		"total_tokens": totalTokens,
+		"artifact_dir": storage.RelDir(baseLoc),
+	})
+	if err != nil {
+		// Fall back to the legacy shape — the frontend treats a missing
+		// data payload as a no-op and stays functional.
+		completedPayload = nil
+	}
 	e.eventBus.Publish(execution.ID, Event{
 		Type:        EventExecutionCompleted,
 		ExecutionID: execution.ID,
+		Data:        completedPayload,
 		Timestamp:   time.Now(),
 	})
 
@@ -503,6 +525,12 @@ func (e *Engine) RerunFromNode(ctx context.Context, execution domain.Execution, 
 
 		nodeOutputs[node.ID] = stepOut.Data
 
+		// Same side-write as ExecuteWorkflow — keep re-runs writing
+		// agent outputs so a "re-run from here" updates the .txt file.
+		if node.Type == domain.NodeTypeAgent {
+			writeAgentOutputFile(ctx, e.fileStore, nodeLoc, node, stepOut.Data)
+		}
+
 		if updateErr := e.stepResults.UpdateStatus(ctx, stepResult.ID, domain.StatusCompleted, stepOut.Data, nil, stepOut.TokensUsed, stepOut.CostUSD, &durationMs); updateErr != nil {
 			slog.Error("failed to update step result", "error", updateErr)
 		}
@@ -522,9 +550,18 @@ func (e *Engine) RerunFromNode(ctx context.Context, execution domain.Execution, 
 
 	e.writeManifestBestEffort(ctx, execution, graph, baseLoc, sortedNodes, startTime, totalCost, totalTokens)
 
+	rerunPayload, err := json.Marshal(map[string]any{
+		"total_cost":   totalCost,
+		"total_tokens": totalTokens,
+		"artifact_dir": storage.RelDir(baseLoc),
+	})
+	if err != nil {
+		rerunPayload = nil
+	}
 	e.eventBus.Publish(execution.ID, Event{
 		Type:        EventExecutionCompleted,
 		ExecutionID: execution.ID,
+		Data:        rerunPayload,
 		Timestamp:   time.Now(),
 	})
 

@@ -68,6 +68,13 @@ interface ExecutionState {
   stepResults: Map<string, StepResult>;
   totalCost: number;
   isStreaming: boolean;
+  /**
+   * Relative path (forward-slashed) under the backend's DataDir that
+   * contains this execution's manifest.json, agent .txt files, and
+   * media outputs. Populated on execution_completed so the UI can
+   * offer an "Open folder" action. Null until the run finishes.
+   */
+  artifactDir: string | null;
 
   startExecution: (pipelineId: string, fromNodeId?: string) => Promise<void>;
   retryNode: (executionId: string, nodeId: string) => void;
@@ -86,6 +93,7 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
   stepResults: new Map(),
   totalCost: 0,
   isStreaming: false,
+  artifactDir: null,
 
   startExecution: async (pipelineId, fromNodeId) => {
     get().disconnectSSE();
@@ -96,6 +104,7 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
       stepResults: new Map(),
       totalCost: 0,
       isStreaming: false,
+      artifactDir: null,
     });
 
     const body = fromNodeId ? { from_node_id: fromNodeId } : undefined;
@@ -199,15 +208,20 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
     });
 
     es.addEventListener('execution_completed', (e: MessageEvent) => {
-      const env = parseEnvelope<{ total_cost?: number }>(e.data);
+      const env = parseEnvelope<{ total_cost?: number; artifact_dir?: string }>(e.data);
       const total =
         env && typeof env.data?.total_cost === 'number'
           ? env.data.total_cost
           : get().totalCost;
+      const dir =
+        env && typeof env.data?.artifact_dir === 'string' && env.data.artifact_dir
+          ? env.data.artifact_dir
+          : null;
       set({
         status: 'completed',
         totalCost: total,
         isStreaming: false,
+        artifactDir: dir,
       });
       get().disconnectSSE();
     });
@@ -269,6 +283,7 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
       stepResults: new Map(),
       totalCost: 0,
       isStreaming: false,
+      artifactDir: null,
     });
   },
 }));

@@ -9,6 +9,7 @@ import { ActivityRail } from './components/sidebar/ActivityRail';
 import { NodeInspector } from './components/inspector/NodeInspector';
 import { RunButton } from './components/execution/RunButton';
 import { ExecutionStatus } from './components/execution/ExecutionStatus';
+import { OpenFolderButton } from './components/execution/OpenFolderButton';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { VersionPanel } from './components/versioning/VersionPanel';
 import { LoginPage } from './components/auth/LoginPage';
@@ -504,6 +505,7 @@ function AppContent() {
           History
         </button>
         <ExecutionStatus />
+        <OpenFolderButton />
         <RunButton />
       </header>
 

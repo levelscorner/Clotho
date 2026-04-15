@@ -114,6 +114,15 @@ func (s *LocalStore) safeJoin(relativePath string) (string, error) {
 	return cleaned, nil
 }
 
+// RelDir returns the relative directory path the Store uses for the given
+// Location — the same path that every file writes resolve against. Callers
+// that need to surface "open this folder" in the UI (e.g. the engine
+// publishing artifact_dir on execution_completed) use this so the path
+// they ship to the frontend exactly matches what ends up on disk.
+func RelDir(loc Location) string {
+	return resolveRelDir(loc)
+}
+
 // resolveRelDir builds the relative directory for a Location, falling back to
 // the unsorted bucket when any required field is zero-valued.
 func resolveRelDir(loc Location) string {

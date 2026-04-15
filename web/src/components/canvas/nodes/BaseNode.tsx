@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Handle, Position } from '@xyflow/react';
+import { Handle, Position, NodeResizer } from '@xyflow/react';
 import { Lock as LockIcon } from 'phosphor-react';
 import type { Port, ExecutionStatus } from '../../../lib/types';
 import { PORT_TYPE_LABEL } from '../../../lib/portCompatibility';
@@ -82,6 +82,17 @@ function BaseNodeInner({
     <div
       className={`clotho-node clotho-node--${variant}${statusClass}${selectedClass}${lockedClass}${extraClass}`}
     >
+      {/* Resize handles on corners + edges; only visible when node is selected.
+          React Flow tracks the new dimensions in its internal store and
+          triggers edge reflow via ResizeObserver automatically. */}
+      <NodeResizer
+        color="var(--accent)"
+        isVisible={Boolean(selected)}
+        minWidth={220}
+        minHeight={140}
+        keepAspectRatio={false}
+      />
+
       {isLocked && (
         <span className="clotho-node__lock-badge" aria-label="Locked" title="Locked">
           <LockIcon size={14} weight="fill" />

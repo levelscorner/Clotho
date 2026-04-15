@@ -14,6 +14,7 @@ type AgentNodeType = Node<AgentNodeData>;
 
 function AgentNodeInner({ id, data, selected }: NodeProps<AgentNodeType>) {
   const setSelectedNode = usePipelineStore((s) => s.setSelectedNode);
+  const updateNodeConfig = usePipelineStore((s) => s.updateNodeConfig);
   const stepResult = useExecutionStore((s) => s.stepResults.get(id));
   const executionId = useExecutionStore((s) => s.executionId);
   const retryNode = useExecutionStore((s) => s.retryNode);
@@ -36,6 +37,17 @@ function AgentNodeInner({ id, data, selected }: NodeProps<AgentNodeType>) {
       setSelectedNode(id);
     },
     [id, setSelectedNode],
+  );
+
+  const handlePromptChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      const val = e.target.value;
+      updateNodeConfig(id, (prev) => {
+        const p = prev as AgentNodeConfig;
+        return { ...p, task: { ...p.task, template: val } };
+      });
+    },
+    [id, updateNodeConfig],
   );
 
   const config = data.config as AgentNodeConfig;
@@ -121,9 +133,18 @@ function AgentNodeInner({ id, data, selected }: NodeProps<AgentNodeType>) {
               </div>
             </>
           ) : (
-            <div className="clotho-node__preview" style={{ fontStyle: 'italic' }}>
-              Ready to execute
-            </div>
+            // Inline prompt editor — the node IS the prompt while idle.
+            // `nodrag` + `nowheel` stop React Flow from treating textarea
+            // gestures as a node drag or canvas pan. stopPropagation on
+            // mousedown keeps focus from jumping to node selection.
+            <textarea
+              className="clotho-node__prompt nodrag nowheel"
+              value={config.task.template}
+              onChange={handlePromptChange}
+              onMouseDown={(e) => e.stopPropagation()}
+              placeholder="Your prompt goes here…"
+              aria-label={`Prompt for ${label}`}
+            />
           )}
 
           {/* Preset-specific readouts */}

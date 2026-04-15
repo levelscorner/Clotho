@@ -13,6 +13,9 @@
 .clotho-node {
   position: relative;
   min-width: 220px;
+  min-height: 140px;
+  width: 100%;
+  height: 100%;
   border-radius: var(--radius-md);
   background: var(--surface-raised);
   border: 1px solid var(--surface-border);
@@ -21,12 +24,24 @@
      rounded corners. Inner surfaces (header, body) retain their own radii. */
   overflow: visible;
   transition: box-shadow var(--duration-normal) var(--ease-out);
-  /* Flex column so we can insert a description line between the header
-     (rendered by subclass as children) and the rest of the body. The
-     `order` override below lifts the header to the top; the description
-     element sits just after it in source order. */
   display: flex;
   flex-direction: column;
+}
+
+/* React Flow's NodeResizer renders its own handles at corners/edges.
+   We tint them to match the amber accent and keep them subtle until
+   the node is selected. */
+.react-flow__resize-control.handle {
+  background: var(--accent) !important;
+  border: 1px solid var(--surface-raised) !important;
+  width: 8px !important;
+  height: 8px !important;
+  border-radius: 2px !important;
+}
+
+.react-flow__resize-control.line {
+  border-color: var(--accent) !important;
+  opacity: 0.5;
 }
 
 /* Lift the subclass-rendered header to the top of the flex stack so our
@@ -237,6 +252,40 @@
 
 .clotho-node__body {
   padding: var(--space-md) var(--space-lg);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Inline editable prompt textarea — the main "write your prompt here"
+   surface on an idle Agent node. Grows with the node when the user
+   drags a resize handle. */
+.clotho-node__prompt {
+  flex: 1;
+  min-height: 60px;
+  width: 100%;
+  background: var(--surface-base);
+  color: var(--text-primary);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color var(--duration-fast);
+}
+
+.clotho-node__prompt::placeholder {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.clotho-node__prompt:focus {
+  border-color: var(--accent);
 }
 
 .clotho-node__badge {

@@ -505,7 +505,56 @@ test.describe('Inspector group order', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 8. Media provider guard
+// 8. Inline prompt editor + NodeResizer on Agent nodes
+// ---------------------------------------------------------------------------
+
+test.describe('Agent node inline prompt + resize', () => {
+  test('Agent nodes expose an editable textarea while idle; typing updates config', async ({ page }) => {
+    const ok = await ensureNodes(page);
+    test.skip(!ok, 'Could not load nodes');
+
+    const agentNode = page.locator('.react-flow__node').filter({
+      has: page.locator('.clotho-node--agent-script, .clotho-node--agent-crafter, .clotho-node--agent-generic'),
+    }).first();
+
+    const hasAgent = await agentNode.isVisible({ timeout: 2000 }).catch(() => false);
+    test.skip(!hasAgent, 'No agent node in pipeline');
+
+    const textarea = agentNode.locator('.clotho-node__prompt');
+    await expect(textarea).toBeVisible();
+
+    const stamp = `sprint-stamp-${Date.now()}`;
+    await textarea.focus();
+    await page.keyboard.press('End');
+    await page.keyboard.type(stamp);
+
+    // The textarea reflects the new value (focus may land anywhere; only
+    // assert the stamp made it in).
+    const after = await textarea.inputValue();
+    expect(after).toContain(stamp);
+
+    // Clicking the textarea still selects the node → inspector opens.
+    await textarea.click();
+    await expect(page.locator('.clotho-inspector')).toBeVisible({ timeout: 3000 });
+  });
+
+  test('selecting a node reveals NodeResizer handles', async ({ page }) => {
+    const ok = await ensureNodes(page);
+    test.skip(!ok, 'Could not load nodes');
+
+    const firstNode = page.locator('.react-flow__node').first();
+    await firstNode.click();
+
+    // NodeResizer renders 4 corner handles + 4 edge lines when active.
+    const resizeHandles = firstNode.locator('.react-flow__resize-control.handle');
+    await expect(resizeHandles.first()).toBeVisible({ timeout: 2000 });
+    const count = await resizeHandles.count();
+    expect(count).toBeGreaterThanOrEqual(4);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 9. Media provider guard
 // ---------------------------------------------------------------------------
 
 test.describe('Media provider guard', () => {

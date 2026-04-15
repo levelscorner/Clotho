@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/user/clotho/internal/util/redact"
 )
 
 const openaiSpeechURL = "https://api.openai.com/v1/audio/speech"
@@ -94,7 +95,7 @@ func (t *TTS) Submit(ctx context.Context, req MediaRequest) (string, error) {
 		if json.Unmarshal(respBody, &errResp) == nil && errResp.Error.Message != "" {
 			return "", fmt.Errorf("tts: API error: %s", errResp.Error.Message)
 		}
-		return "", fmt.Errorf("tts: unexpected status %d: %s", resp.StatusCode, string(respBody))
+		return "", fmt.Errorf("tts: unexpected status %d: %s", resp.StatusCode, redact.Secrets(string(respBody)))
 	}
 
 	// Response is raw MP3 bytes; encode as base64 data URI

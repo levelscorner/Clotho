@@ -9,6 +9,8 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/user/clotho/internal/util/redact"
 )
 
 const geminiBaseURL = "https://generativelanguage.googleapis.com/v1beta/models"
@@ -86,7 +88,7 @@ func (p *GeminiProvider) Complete(ctx context.Context, req CompletionRequest) (C
 
 	if httpResp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(httpResp.Body)
-		return CompletionResponse{}, fmt.Errorf("gemini complete: status %d: %s", httpResp.StatusCode, string(respBody))
+		return CompletionResponse{}, fmt.Errorf("gemini complete: status %d: %s", httpResp.StatusCode, redact.Secrets(string(respBody)))
 	}
 
 	var gemResp geminiResponse
@@ -135,7 +137,7 @@ func (p *GeminiProvider) Stream(ctx context.Context, req CompletionRequest) (<-c
 	if httpResp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(httpResp.Body)
 		httpResp.Body.Close()
-		return nil, fmt.Errorf("gemini stream: status %d: %s", httpResp.StatusCode, string(respBody))
+		return nil, fmt.Errorf("gemini stream: status %d: %s", httpResp.StatusCode, redact.Secrets(string(respBody)))
 	}
 
 	ch := make(chan StreamChunk, 64)

@@ -13,6 +13,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/user/clotho/internal/util/redact"
 )
 
 // ComfyUI implements Provider against a local ComfyUI server
@@ -179,7 +181,7 @@ func (c *ComfyUI) Submit(ctx context.Context, req MediaRequest) (string, error) 
 		return "", fmt.Errorf("comfyui: read response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("comfyui: unexpected status %d: %s", resp.StatusCode, truncate(string(respBody), 300))
+		return "", fmt.Errorf("comfyui: unexpected status %d: %s", resp.StatusCode, redact.Secrets(truncate(string(respBody), 300)))
 	}
 
 	var parsed comfyPromptResponse
@@ -187,7 +189,7 @@ func (c *ComfyUI) Submit(ctx context.Context, req MediaRequest) (string, error) 
 		return "", fmt.Errorf("comfyui: decode prompt response: %w", err)
 	}
 	if parsed.PromptID == "" {
-		return "", fmt.Errorf("comfyui: server accepted workflow but returned no prompt_id; body=%s", truncate(string(respBody), 300))
+		return "", fmt.Errorf("comfyui: server accepted workflow but returned no prompt_id; body=%s", redact.Secrets(truncate(string(respBody), 300)))
 	}
 	return parsed.PromptID, nil
 }

@@ -252,6 +252,66 @@ func TestValidate_EmptyDataDirRejected(t *testing.T) {
 	}
 }
 
+func TestValidate_ProdRequiresMasterKey(t *testing.T) {
+	cfg := &Config{
+		DataDir:   "/tmp/clotho-test",
+		Env:       "production",
+		MasterKey: "",
+	}
+	// JWT_SECRET must be present for the prod path — set it via env so we
+	// isolate the check we want to exercise.
+	orig, had := os.LookupEnv("JWT_SECRET")
+	os.Setenv("JWT_SECRET", "x")
+	defer func() {
+		if had {
+			os.Setenv("JWT_SECRET", orig)
+		} else {
+			os.Unsetenv("JWT_SECRET")
+		}
+	}()
+
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("expected error when CLOTHO_MASTER_KEY is empty in production")
+	}
+	if !strings.Contains(err.Error(), "CLOTHO_MASTER_KEY") {
+		t.Errorf("error = %q, want mention of CLOTHO_MASTER_KEY", err.Error())
+	}
+}
+
+func TestValidate_ProdRequiresJWTSecret(t *testing.T) {
+	cfg := &Config{
+		DataDir:   "/tmp/clotho-test",
+		Env:       "production",
+		MasterKey: "somehexkey",
+	}
+	orig, had := os.LookupEnv("JWT_SECRET")
+	os.Unsetenv("JWT_SECRET")
+	defer func() {
+		if had {
+			os.Setenv("JWT_SECRET", orig)
+		}
+	}()
+
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("expected error when JWT_SECRET is empty in production")
+	}
+	if !strings.Contains(err.Error(), "JWT_SECRET") {
+		t.Errorf("error = %q, want mention of JWT_SECRET", err.Error())
+	}
+}
+
+func TestValidate_DevAllowsEmptyMasterKey(t *testing.T) {
+	cfg := &Config{
+		DataDir: "/tmp/clotho-test",
+		Env:     "dev",
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("dev config should validate without master key, got: %v", err)
+	}
+}
+
 func TestLoad_ValidModes(t *testing.T) {
 	validModes := []string{"server", "worker", "all", "SERVER", "Worker", "ALL"}
 

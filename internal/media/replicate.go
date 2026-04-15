@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/user/clotho/internal/util/redact"
 )
 
 const replicateBaseURL = "https://api.replicate.com/v1"
@@ -104,7 +106,7 @@ func (r *Replicate) Submit(ctx context.Context, req MediaRequest) (string, error
 	}
 
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("replicate: unexpected status %d: %s", resp.StatusCode, string(respBody))
+		return "", fmt.Errorf("replicate: unexpected status %d: %s", resp.StatusCode, redact.Secrets(string(respBody)))
 	}
 
 	var prediction replicatePrediction
@@ -135,7 +137,7 @@ func (r *Replicate) Poll(ctx context.Context, jobID string) (MediaStatus, error)
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return MediaStatus{}, fmt.Errorf("replicate: poll status %d: %s", resp.StatusCode, string(respBody))
+		return MediaStatus{}, fmt.Errorf("replicate: poll status %d: %s", resp.StatusCode, redact.Secrets(string(respBody)))
 	}
 
 	var prediction replicatePrediction

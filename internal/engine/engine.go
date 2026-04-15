@@ -12,6 +12,7 @@ import (
 	"github.com/user/clotho/internal/domain"
 	"github.com/user/clotho/internal/storage"
 	"github.com/user/clotho/internal/store"
+	"github.com/user/clotho/internal/util/redact"
 )
 
 // manifestOutputPreviewBytes caps inline text output captured in the manifest
@@ -208,7 +209,7 @@ func (e *Engine) ExecuteWorkflow(ctx context.Context, execution domain.Execution
 		durationMs := time.Since(start).Milliseconds()
 
 		if execErr != nil {
-			errStr := execErr.Error()
+			errStr := redact.Secrets(execErr.Error())
 			if updateErr := e.stepResults.UpdateStatus(ctx, stepResult.ID, domain.StatusFailed, nil, &errStr, nil, nil, &durationMs); updateErr != nil {
 				slog.Error("failed to update step status", "error", updateErr)
 			}
@@ -216,10 +217,10 @@ func (e *Engine) ExecuteWorkflow(ctx context.Context, execution domain.Execution
 				Type:        EventStepFailed,
 				ExecutionID: execution.ID,
 				NodeID:      node.ID,
-				Error:       execErr.Error(),
+				Error:       errStr,
 				Timestamp:   time.Now(),
 			})
-			return e.failExecution(ctx, execution.ID, fmt.Sprintf("node %s execution failed: %s", node.ID, execErr))
+			return e.failExecution(ctx, execution.ID, fmt.Sprintf("node %s execution failed: %s", node.ID, errStr))
 		}
 
 		// Accumulate cost and token data
@@ -464,7 +465,7 @@ func (e *Engine) RerunFromNode(ctx context.Context, execution domain.Execution, 
 		durationMs := time.Since(start).Milliseconds()
 
 		if execErr != nil {
-			errStr := execErr.Error()
+			errStr := redact.Secrets(execErr.Error())
 			if updateErr := e.stepResults.UpdateStatus(ctx, stepResult.ID, domain.StatusFailed, nil, &errStr, nil, nil, &durationMs); updateErr != nil {
 				slog.Error("failed to update step status", "error", updateErr)
 			}
@@ -472,10 +473,10 @@ func (e *Engine) RerunFromNode(ctx context.Context, execution domain.Execution, 
 				Type:        EventStepFailed,
 				ExecutionID: execution.ID,
 				NodeID:      node.ID,
-				Error:       execErr.Error(),
+				Error:       errStr,
 				Timestamp:   time.Now(),
 			})
-			return e.failExecution(ctx, execution.ID, fmt.Sprintf("node %s execution failed: %s", node.ID, execErr))
+			return e.failExecution(ctx, execution.ID, fmt.Sprintf("node %s execution failed: %s", node.ID, errStr))
 		}
 
 		if stepOut.TokensUsed != nil {
@@ -633,15 +634,19 @@ func truncateForManifest(s string) string {
 }
 
 // failExecution marks the execution as failed and publishes a failure event.
+// The incoming errMsg may contain an upstream provider body with an embedded
+// API key (we've seen it with Gemini 403s). Scrub here so both the DB row
+// and the SSE event carry a safe-to-display message.
 func (e *Engine) failExecution(ctx context.Context, executionID uuid.UUID, errMsg string) error {
-	if updateErr := e.executions.UpdateStatus(ctx, executionID, domain.StatusFailed, &errMsg); updateErr != nil {
+	safeMsg := redact.Secrets(errMsg)
+	if updateErr := e.executions.UpdateStatus(ctx, executionID, domain.StatusFailed, &safeMsg); updateErr != nil {
 		slog.Error("failed to update execution status", "error", updateErr)
 	}
 	e.eventBus.Publish(executionID, Event{
 		Type:        EventExecutionFailed,
 		ExecutionID: executionID,
-		Error:       errMsg,
+		Error:       safeMsg,
 		Timestamp:   time.Now(),
 	})
-	return fmt.Errorf("%s", errMsg)
+	return fmt.Errorf("%s", safeMsg)
 }

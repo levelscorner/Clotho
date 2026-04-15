@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/user/clotho/internal/util/redact"
 )
 
 const openaiImagesURL = "https://api.openai.com/v1/images/generations"
@@ -113,7 +114,7 @@ func (d *DALLE) Submit(ctx context.Context, req MediaRequest) (string, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("dalle: unexpected status %d: %s", resp.StatusCode, string(respBody))
+		return "", fmt.Errorf("dalle: unexpected status %d: %s", resp.StatusCode, redact.Secrets(string(respBody)))
 	}
 
 	if len(dalleResp.Data) == 0 {

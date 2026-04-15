@@ -59,11 +59,23 @@ var prodMarkers = []string{
 }
 
 // Validate performs cross-field checks that cannot be expressed by Load.
-// In particular, it ensures NoAuth cannot accidentally be enabled in a
-// production environment.
+// Covers three production-safety invariants:
+//   - DataDir must resolve to something.
+//   - NO_AUTH must not accidentally be enabled in a production environment.
+//   - In production, credentials must be encrypted (MasterKey set) and
+//     JWT_SECRET must be provided so tokens survive restarts.
 func (c *Config) Validate() error {
 	if c.DataDir == "" {
 		return fmt.Errorf("DataDir must be set (CLOTHO_DATA_DIR or default)")
+	}
+
+	if c.Env == "production" {
+		if c.MasterKey == "" {
+			return fmt.Errorf("CLOTHO_MASTER_KEY is required in production — refusing to store credentials unencrypted")
+		}
+		if os.Getenv("JWT_SECRET") == "" {
+			return fmt.Errorf("JWT_SECRET is required in production — a generated one would invalidate tokens on every restart")
+		}
 	}
 
 	if !c.NoAuth {
@@ -107,19 +119,13 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("invalid MODE: %s (must be server, worker, or all)", cfg.Mode)
 	}
 
-	// JWT
+	// JWT — prefer env, then a dev-persisted secret in DataDir, then
+	// generate a fresh one (logged as dev-only).
 	cfg.JWTSecret = getEnv("JWT_SECRET", "")
-	if cfg.JWTSecret == "" {
-		cfg.JWTSecret = generateRandomHex(32)
-		slog.Warn("JWT_SECRET not set, generated random secret (dev mode only)")
-	}
 	cfg.JWTExpiry = parseDuration(getEnv("JWT_EXPIRY", "15m"), 15*time.Minute)
 
-	// Envelope encryption master key
+	// Envelope encryption master key (Validate enforces prod requirement).
 	cfg.MasterKey = getEnv("CLOTHO_MASTER_KEY", "")
-	if cfg.MasterKey == "" {
-		slog.Warn("CLOTHO_MASTER_KEY not set, credentials will be stored without encryption (dev mode only)")
-	}
 
 	// Admin password
 	cfg.AdminPassword = getEnv("ADMIN_PASSWORD", "clotho123")
@@ -166,8 +172,27 @@ func Load() (*Config, error) {
 		}
 	}
 
+	// In dev, if no JWT_SECRET was provided, read (or create) a persistent
+	// one in DataDir so reloads don't invalidate dev tokens. In production
+	// Validate will refuse to start if JWT_SECRET is empty.
+	if cfg.JWTSecret == "" && cfg.Env != "production" {
+		secret, err := loadOrCreateDevJWTSecret(cfg.DataDir)
+		if err != nil {
+			// Fall back to an ephemeral secret — tokens won't survive restart
+			// but the server can still boot.
+			slog.Warn("JWT_SECRET not set and persist failed, using ephemeral secret (dev only)", "error", err)
+			cfg.JWTSecret = generateRandomHex(32)
+		} else {
+			cfg.JWTSecret = secret
+		}
+	}
+
 	if err := cfg.Validate(); err != nil {
 		return nil, err
+	}
+
+	if cfg.MasterKey == "" && cfg.Env != "production" {
+		slog.Warn("CLOTHO_MASTER_KEY not set — credentials stored unencrypted (dev mode only)")
 	}
 
 	if cfg.NoAuth {
@@ -175,6 +200,28 @@ func Load() (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+// loadOrCreateDevJWTSecret reads a persisted JWT secret from
+// {dataDir}/.jwt-secret, creating it (0600) if absent. Only called in dev.
+func loadOrCreateDevJWTSecret(dataDir string) (string, error) {
+	if err := os.MkdirAll(dataDir, 0o755); err != nil {
+		return "", fmt.Errorf("ensure data dir: %w", err)
+	}
+	path := filepath.Join(dataDir, ".jwt-secret")
+	data, err := os.ReadFile(path)
+	if err == nil && len(data) > 0 {
+		return strings.TrimSpace(string(data)), nil
+	}
+	if !os.IsNotExist(err) && err != nil {
+		return "", fmt.Errorf("read jwt-secret: %w", err)
+	}
+	secret := generateRandomHex(32)
+	if err := os.WriteFile(path, []byte(secret), 0o600); err != nil {
+		return "", fmt.Errorf("write jwt-secret: %w", err)
+	}
+	slog.Info("generated persistent dev JWT secret", "path", path)
+	return secret, nil
 }
 
 func getEnv(key, fallback string) string {

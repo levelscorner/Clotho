@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/user/clotho/internal/util/redact"
 )
 
 // Kokoro implements Provider using a local Kokoro-FastAPI server that exposes
@@ -124,7 +125,7 @@ func (k *Kokoro) Submit(ctx context.Context, req MediaRequest) (string, error) {
 				return "", fmt.Errorf("kokoro: API error: %s", errResp.Error.Message)
 			}
 		}
-		return "", fmt.Errorf("kokoro: unexpected status %d: %s", resp.StatusCode, string(respBody))
+		return "", fmt.Errorf("kokoro: unexpected status %d: %s", resp.StatusCode, redact.Secrets(string(respBody)))
 	}
 
 	// Response body is raw MP3 audio. Encode as base64 data URI so the

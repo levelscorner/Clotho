@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import { NodePalette } from '../NodePalette';
 import { api } from '../../../lib/api';
+import { useUIStore } from '../../../stores/uiStore';
 import type { AgentPreset } from '../../../lib/types';
 
 // ---------------------------------------------------------------------------
@@ -79,6 +80,11 @@ describe('NodePalette', () => {
       });
     }
     vi.spyOn(api, 'get').mockResolvedValue(PRESET_FIXTURES as never);
+    // Force the "show all sections" branch. On desktop the palette is a
+    // click-to-open flyout (only one section at a time); mobilePaletteOpen
+    // toggles the legacy full-drawer view, which surfaces all three so
+    // structural assertions below still have something to inspect.
+    useUIStore.setState({ mobilePaletteOpen: true });
   });
 
   // -----------------------------------------------------------------------

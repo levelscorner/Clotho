@@ -5,6 +5,7 @@ import './styles/nodes.css';
 import { ReactFlowProvider } from '@xyflow/react';
 import { PipelineCanvas } from './components/canvas/PipelineCanvas';
 import { NodePalette } from './components/sidebar/NodePalette';
+import { ActivityRail } from './components/sidebar/ActivityRail';
 import { NodeInspector } from './components/inspector/NodeInspector';
 import { RunButton } from './components/execution/RunButton';
 import { ExecutionStatus } from './components/execution/ExecutionStatus';
@@ -508,6 +509,7 @@ function AppContent() {
 
       {/* Main content */}
       <div style={{ display: 'flex', flex: 1, minHeight: 0, position: 'relative' }}>
+        <ActivityRail />
         <NodePalette />
         <PipelineCanvas />
         <NodeInspector />

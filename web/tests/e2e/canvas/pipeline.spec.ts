@@ -173,7 +173,7 @@ test.describe('/dev/nodes testbed', () => {
 });
 
 test.describe('Responsive layout', () => {
-  test('at 768px sidebar collapses to 56px icon-only rail', async ({ page }) => {
+  test('at 768px ActivityRail (48px) is visible; flyout is closed by default', async ({ page }) => {
     await page.setViewportSize({ width: 768, height: 900 });
     await page.goto('/');
     await page.waitForLoadState('networkidle');
@@ -182,12 +182,15 @@ test.describe('Responsive layout', () => {
     const canvasVisible = await canvas.isVisible({ timeout: 3000 }).catch(() => false);
     test.skip(!canvasVisible, 'Canvas not available');
 
-    const palette = page.locator('.clotho-palette');
-    await expect(palette).toBeVisible();
+    // The persistent icon column is the ActivityRail (48px).
+    const rail = page.locator('[data-testid="activity-rail"]');
+    await expect(rail).toBeVisible();
 
-    const box = await palette.boundingBox();
-    // At tablet breakpoint (768-1023px), palette collapses to 56px.
-    expect(box?.width).toBeLessThanOrEqual(60); // 56px ± 4px tolerance
+    const box = await rail.boundingBox();
+    expect(box?.width).toBeLessThanOrEqual(52); // 48px ± 4px tolerance
+
+    // Flyout panel hidden until a rail icon is clicked.
+    await expect(page.locator('.clotho-palette')).toBeHidden();
   });
 
   test('at 375px hamburger button visible and opens palette', async ({ page }) => {
@@ -198,6 +201,22 @@ test.describe('Responsive layout', () => {
     const canvas = page.locator('.react-flow');
     const canvasVisible = await canvas.isVisible({ timeout: 3000 }).catch(() => false);
     test.skip(!canvasVisible, 'Canvas not available');
+
+    // Dismiss AuthBanner if it's covering the hamburger button at narrow viewport.
+    const authBanner = page.locator('.auth-banner');
+    const authBannerVisible = await authBanner.isVisible({ timeout: 1000 }).catch(() => false);
+    if (authBannerVisible) {
+      const closeBtn = authBanner.locator('.auth-banner__close');
+      const closeBtnVisible = await closeBtn.isVisible({ timeout: 1000 }).catch(() => false);
+      if (closeBtnVisible) {
+        await closeBtn.click();
+      } else {
+        await page.evaluate(() => {
+          const el = document.querySelector('.auth-banner') as HTMLElement | null;
+          if (el) el.style.display = 'none';
+        });
+      }
+    }
 
     // Dismiss SmallScreenBanner if it's blocking interactions.
     const banner = page.locator('.clotho-small-screen-banner');

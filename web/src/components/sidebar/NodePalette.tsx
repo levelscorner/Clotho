@@ -296,8 +296,13 @@ export function NodePalette() {
   const [presets, setPresets] = useState<AgentPreset[]>([]);
   const mobileOpen = useUIStore((s) => s.mobilePaletteOpen);
   const closeMobile = useUIStore((s) => s.closeMobilePalette);
+  const activeSection = useUIStore((s) => s.activePaletteSection);
+  const setActive = useUIStore((s) => s.setActivePaletteSection);
   const asideRef = useRef<HTMLElement | null>(null);
   const firstFocusableRef = useRef<HTMLButtonElement | null>(null);
+  // Mobile drawer shows all sections; desktop flyout shows only active.
+  // When mobile is open we ignore activeSection entirely.
+  const showAll = mobileOpen;
 
   useEffect(() => {
     api
@@ -319,6 +324,19 @@ export function NodePalette() {
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [mobileOpen, closeMobile]);
+
+  // Escape closes the desktop flyout panel too.
+  useEffect(() => {
+    if (!activeSection || mobileOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setActive(null);
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [activeSection, mobileOpen, setActive]);
 
   // Simple focus trap: when mobile drawer opens, focus the close button.
   useEffect(() => {
@@ -375,6 +393,8 @@ export function NodePalette() {
         aria-label="Node palette"
         className="clotho-palette"
         data-mobile-open={mobileOpen ? 'true' : 'false'}
+        data-section={showAll ? 'all' : (activeSection ?? 'none')}
+        hidden={!showAll && !activeSection}
         {...dialogProps}
       >
         {/* Mobile-only close button — hidden via CSS at larger breakpoints. */}
@@ -403,6 +423,7 @@ export function NodePalette() {
         )}
 
         {/* ---- AGENT ---- four modalities: Prompt / Image / Audio / Video */}
+        {(showAll || activeSection === 'agent') && (<>
         <SectionHeader icon={Robot} label="Agent" />
         <div className="clotho-tile-grid" style={gridStyle}>
           {AGENT_ITEMS.map((item) => (
@@ -431,9 +452,10 @@ export function NodePalette() {
             </div>
           ))}
         </div>
+        </>)}
 
         {/* ---- PERSONALITY ---- */}
-        {presets.length > 0 && (
+        {(showAll || activeSection === 'personality') && presets.length > 0 && (
           <>
             <SectionHeader icon={UserCircle} label="Personality" />
             <div className="clotho-tile-grid" style={gridStyle}>
@@ -469,6 +491,7 @@ export function NodePalette() {
         )}
 
         {/* ---- TOOLS ---- */}
+        {(showAll || activeSection === 'tools') && (<>
         <SectionHeader icon={Wrench} label="Tools" />
         <div className="clotho-tile-grid" style={gridStyle}>
           {TOOLS.map((item) => (
@@ -495,6 +518,7 @@ export function NodePalette() {
             </div>
           ))}
         </div>
+        </>)}
       </aside>
     </>
   );

@@ -68,23 +68,25 @@ test.describe('No-auth landing', () => {
     expect(headerBox?.y).toBeGreaterThanOrEqual(bannerBottom);
   });
 
-  test('sidebar palette shows icon-grid (not text list)', async ({ page }) => {
+  test('activity rail is visible; opening Agent flyout shows icon-grid (not text list)', async ({ page }) => {
     const banner = page.locator('.auth-banner').first();
     const bannerVisible = await banner.isVisible({ timeout: 2000 }).catch(() => false);
     test.skip(!bannerVisible, 'Frontend not running with VITE_NO_AUTH=true');
 
-    // Palette aside should be visible.
+    // Activity rail is always visible on desktop.
+    await expect(page.locator('[data-testid="activity-rail"]')).toBeVisible();
+
+    // Palette is hidden until a rail icon is clicked (flyout pattern).
+    await page.locator('[data-testid="rail-agent"]').click();
     await expect(page.locator('.clotho-palette')).toBeVisible();
 
-    // It should contain tile grids, not a bare list.
-    const tileGrids = page.locator('.clotho-tile-grid');
-    const count = await tileGrids.count();
-    expect(count).toBeGreaterThanOrEqual(2); // at minimum Agent + Media grids
+    // Open Agent section — contains one tile grid with 4 modality tiles.
+    const tileGrid = page.locator('.clotho-tile-grid').first();
+    await expect(tileGrid).toBeVisible();
 
-    // Media section tiles exist.
     const tiles = page.locator('.clotho-tile-label');
     const tileCount = await tiles.count();
-    expect(tileCount).toBeGreaterThanOrEqual(3);
+    expect(tileCount).toBeGreaterThanOrEqual(4);
   });
 
   test('no blue or purple gradients in rendered CSS', async ({ page }) => {

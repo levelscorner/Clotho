@@ -34,6 +34,10 @@
   /* Leave room on the right for the close button without using padding on the
    * parent (keeps text centred). */
   padding-right: 32px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: calc(100% - 40px);
 }
 
 .auth-banner__close {

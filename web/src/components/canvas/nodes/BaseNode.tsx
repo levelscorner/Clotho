@@ -1,11 +1,11 @@
-import React, { useCallback, useMemo, useRef } from 'react';
+import React, { useMemo } from 'react';
 import { Handle, Position, NodeResizer } from '@xyflow/react';
 import { Lock as LockIcon } from 'phosphor-react';
 import type { Port, ExecutionStatus } from '../../../lib/types';
 import { PORT_TYPE_LABEL } from '../../../lib/portCompatibility';
 import { useExecutionStore } from '../../../stores/executionStore';
 import { usePipelineStore } from '../../../stores/pipelineStore';
-import { NodeActionsMenu, type NodeActionsMenuHandle } from './NodeActionsMenu';
+import { NodeActionsMenu, NodeContextMenuProvider } from './NodeActionsMenu';
 import { describeNode } from '../../../lib/nodeDescriptions';
 
 // ---------------------------------------------------------------------------
@@ -51,14 +51,6 @@ function BaseNodeInner({
   const status: ExecutionStatus | undefined = stepResult?.status;
   const isLocked = usePipelineStore((s) => s.lockedNodes.has(id));
 
-  const menuRef = useRef<NodeActionsMenuHandle | null>(null);
-  const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    // Suppress the browser's native context menu and open our own.
-    e.preventDefault();
-    e.stopPropagation();
-    menuRef.current?.open();
-  }, []);
-
   // Subscribe narrowly to this node's data so we can compute a teaser
   // description without reaching into the subclass components.
   const node = usePipelineStore((s) => s.nodes.find((n) => n.id === id));
@@ -85,10 +77,10 @@ function BaseNodeInner({
   const outputPorts = ports.filter((p) => p.direction === 'output');
 
   return (
-    <div
-      className={`clotho-node clotho-node--${variant}${statusClass}${selectedClass}${lockedClass}${extraClass}`}
-      onContextMenu={handleContextMenu}
-    >
+    <NodeContextMenuProvider nodeId={id}>
+      <div
+        className={`clotho-node clotho-node--${variant}${statusClass}${selectedClass}${lockedClass}${extraClass}`}
+      >
       {/* Resize handles on corners + edges; only visible when node is selected.
           React Flow tracks the new dimensions in its internal store and
           triggers edge reflow via ResizeObserver automatically. */}
@@ -106,7 +98,7 @@ function BaseNodeInner({
         </span>
       )}
 
-      <NodeActionsMenu ref={menuRef} nodeId={id} label={label} />
+      <NodeActionsMenu nodeId={id} label={label} />
 
       {/* Input handles + hover labels */}
       {inputPorts.map((port, i) => {
@@ -167,7 +159,8 @@ function BaseNodeInner({
           </React.Fragment>
         );
       })}
-    </div>
+      </div>
+    </NodeContextMenuProvider>
   );
 }
 

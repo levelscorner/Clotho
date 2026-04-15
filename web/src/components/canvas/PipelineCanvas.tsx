@@ -161,6 +161,8 @@ export function PipelineCanvas() {
     event.dataTransfer.dropEffect = 'move';
   }, []);
 
+  const { setCenter, screenToFlowPosition } = useReactFlow();
+
   const onDrop = useCallback(
     (event: DragEvent<HTMLDivElement>) => {
       event.preventDefault();
@@ -175,14 +177,15 @@ export function PipelineCanvas() {
         return;
       }
 
-      const bounds = (event.target as HTMLElement)
-        .closest('.react-flow')
-        ?.getBoundingClientRect();
-
-      const position = {
-        x: bounds ? event.clientX - bounds.left : event.clientX,
-        y: bounds ? event.clientY - bounds.top : event.clientY,
-      };
+      // Convert screen (clientX/Y) to flow coordinates. The previous code
+      // used clientX - bounds.left, which was wrong whenever the viewport
+      // was panned or zoomed — nodes landed near the canvas origin instead
+      // of under the cursor. screenToFlowPosition accounts for the current
+      // viewport transform.
+      const position = screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      });
 
       addNode(
         payload.nodeType,
@@ -192,10 +195,9 @@ export function PipelineCanvas() {
         payload.label,
       );
     },
-    [addNode],
+    [addNode, screenToFlowPosition],
   );
 
-  const { setCenter } = useReactFlow();
   const onNodeClick = useCallback(
     (_event: React.MouseEvent, node: Node<PipelineNodeData>) => {
       setSelectedNode(node.id);

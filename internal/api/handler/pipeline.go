@@ -372,6 +372,14 @@ func stripSensitiveConfig(raw json.RawMessage) json.RawMessage {
 	return out
 }
 
+// importMaxNodes caps the node count on import. 200 comfortably holds every
+// creative pipeline we've seen; more than that is either abuse or a bug.
+const importMaxNodes = 200
+
+// importMaxEdges caps the edge count independently; a fully connected 200-node
+// graph would have ~20k edges, which is nonsense for a creative pipeline.
+const importMaxEdges = 500
+
 // Import handles POST /api/pipelines/{id}/import.
 func (h *PipelineHandler) Import(w http.ResponseWriter, r *http.Request) {
 	pipelineID, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -384,8 +392,18 @@ func (h *PipelineHandler) Import(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Override the group's 1 MB default — import exports can be larger
+	// but still bounded. 10 MB is the ceiling beyond which we assume abuse.
+	r.Body = http.MaxBytesReader(w, r.Body, middleware.PipelineImportMaxBodyBytes)
+
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+
 	var imp pipelineExport
-	if err := json.NewDecoder(r.Body).Decode(&imp); err != nil {
+	if err := dec.Decode(&imp); err != nil {
+		if middleware.WriteMaxBytesError(w, err) {
+			return
+		}
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -393,6 +411,14 @@ func (h *PipelineHandler) Import(w http.ResponseWriter, r *http.Request) {
 	// Validate nodes have required fields.
 	if len(imp.Graph.Nodes) == 0 {
 		writeError(w, http.StatusBadRequest, "graph must contain at least one node")
+		return
+	}
+	if len(imp.Graph.Nodes) > importMaxNodes {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("graph has too many nodes (%d, max %d)", len(imp.Graph.Nodes), importMaxNodes))
+		return
+	}
+	if len(imp.Graph.Edges) > importMaxEdges {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("graph has too many edges (%d, max %d)", len(imp.Graph.Edges), importMaxEdges))
 		return
 	}
 	nodeIDs := make(map[string]bool, len(imp.Graph.Nodes))

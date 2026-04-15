@@ -187,6 +187,19 @@ func Load() (*Config, error) {
 		}
 	}
 
+	// Local-provider URL allowlist — rejects OLLAMA_URL / COMFYUI_URL /
+	// KOKORO_URL that point at unexpected hosts (SSRF defense).
+	extraHosts := ParseAllowedHosts(os.Getenv("CLOTHO_LOCAL_PROVIDER_HOSTS"))
+	for label, u := range map[string]string{
+		"OLLAMA_URL":  cfg.OllamaURL,
+		"KOKORO_URL":  cfg.KokoroURL,
+		"COMFYUI_URL": cfg.ComfyUIURL,
+	} {
+		if err := ValidateProviderURL(label, u, extraHosts); err != nil {
+			return nil, err
+		}
+	}
+
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}

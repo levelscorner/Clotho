@@ -74,7 +74,11 @@ func TestLoad_CustomValues(t *testing.T) {
 		"GEMINI_API_KEY":     "gem-test-456",
 		"OPENROUTER_API_KEY": "or-test-789",
 		"OLLAMA_URL":         "http://gpu-server:11434",
-		"LOG_LEVEL":          "debug",
+		// Tell the provider-URL validator that gpu-server is an allowed
+		// local-provider target — this is what an ops team would do for
+		// a homelab rig on the LAN.
+		"CLOTHO_LOCAL_PROVIDER_HOSTS": "gpu-server:11434",
+		"LOG_LEVEL":                   "debug",
 	}
 
 	for key, val := range envs {

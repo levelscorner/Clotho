@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Edge as RFEdge } from '@xyflow/react';
 import type { ExecutionStatus, StepResult } from '../lib/types';
 import { api } from '../lib/api';
+import { parseEnvelope } from './sseParse';
 
 // ---------------------------------------------------------------------------
 // Selector helper: downstream-of-failed node ids
@@ -131,17 +132,9 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
     eventSource = es;
     set({ isStreaming: true });
 
-    // SSE event envelope — matches internal/engine/events.go Event struct.
-    // The payload fields live under `data` (json.RawMessage on the backend);
-    // we parse them per event type below.
-    interface EventEnvelope<T = unknown> {
-      type: string;
-      execution_id: string;
-      node_id?: string;
-      data?: T;
-      error?: string;
-      timestamp: string;
-    }
+    // SSE event envelope shape now lives in ./sseParse as BaseEnvelope.
+    // parseEnvelope returns a typed view or null on malformed input, so
+    // the listeners below never see arbitrary parsed JSON.
 
     const stringify = (value: unknown): string => {
       if (value == null) return '';
@@ -157,8 +150,8 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
     };
 
     es.addEventListener('step_started', (e: MessageEvent) => {
-      const env = JSON.parse(e.data) as EventEnvelope;
-      if (!env.node_id) return;
+      const env = parseEnvelope(e.data);
+      if (!env || !env.node_id) return;
       get().updateStep({
         node_id: env.node_id,
         status: 'running',
@@ -166,56 +159,61 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
     });
 
     es.addEventListener('step_chunk', (e: MessageEvent) => {
-      const env = JSON.parse(e.data) as EventEnvelope<{ chunk?: string }>;
-      if (!env.node_id) return;
-      const chunk = env.data?.chunk ?? '';
+      const env = parseEnvelope<{ chunk?: string }>(e.data);
+      if (!env || !env.node_id) return;
+      const chunk = typeof env.data?.chunk === 'string' ? env.data.chunk : '';
       if (!chunk) return;
       get().appendChunk(env.node_id, chunk);
     });
 
     es.addEventListener('step_completed', (e: MessageEvent) => {
-      const env = JSON.parse(e.data) as EventEnvelope<{
+      const env = parseEnvelope<{
         output?: unknown;
         tokens_used?: number | null;
         cost_usd?: number | null;
         duration_ms?: number | null;
-      }>;
-      if (!env.node_id) return;
+      }>(e.data);
+      if (!env || !env.node_id) return;
       const payload = env.data ?? {};
       get().updateStep({
         node_id: env.node_id,
         status: 'completed',
         output: stringify(payload.output),
-        tokens_used: payload.tokens_used ?? undefined,
-        cost: payload.cost_usd ?? undefined,
-        duration_ms: payload.duration_ms ?? undefined,
+        tokens_used: typeof payload.tokens_used === 'number' ? payload.tokens_used : undefined,
+        cost: typeof payload.cost_usd === 'number' ? payload.cost_usd : undefined,
+        duration_ms: typeof payload.duration_ms === 'number' ? payload.duration_ms : undefined,
         completed_at: env.timestamp,
       });
     });
 
     es.addEventListener('step_failed', (e: MessageEvent) => {
-      const env = JSON.parse(e.data) as EventEnvelope<{ error?: string }>;
-      if (!env.node_id) return;
+      const env = parseEnvelope<{ error?: string }>(e.data);
+      if (!env || !env.node_id) return;
+      const payloadErr = typeof env.data?.error === 'string' ? env.data.error : undefined;
       get().updateStep({
         node_id: env.node_id,
         status: 'failed',
-        error: env.error ?? env.data?.error ?? undefined,
+        error: env.error ?? payloadErr,
         completed_at: env.timestamp,
       });
     });
 
     es.addEventListener('execution_completed', (e: MessageEvent) => {
-      const env = JSON.parse(e.data) as EventEnvelope<{ total_cost?: number }>;
+      const env = parseEnvelope<{ total_cost?: number }>(e.data);
+      const total =
+        env && typeof env.data?.total_cost === 'number'
+          ? env.data.total_cost
+          : get().totalCost;
       set({
         status: 'completed',
-        totalCost: env.data?.total_cost ?? get().totalCost,
+        totalCost: total,
         isStreaming: false,
       });
       get().disconnectSSE();
     });
 
     es.addEventListener('execution_failed', (e: MessageEvent) => {
-      const env = JSON.parse(e.data) as EventEnvelope;
+      const env = parseEnvelope(e.data);
       void env; // currently unused; keep for future error surfacing
       set({ status: 'failed', isStreaming: false });
       get().disconnectSSE();

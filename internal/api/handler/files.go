@@ -148,8 +148,18 @@ func (h *FilesHandler) Reveal(w http.ResponseWriter, r *http.Request) {
 // isSafeRelPath rejects absolute paths and any traversal segments. The
 // storage package performs its own validation; this is a fast-path so
 // obvious attacks return 400 before touching disk.
+//
+// Defense in depth:
+//   - Rejects absolute paths on Unix and Windows (including drive-letter
+//     forms like "C:foo" that filepath.IsAbs returns false for on Unix).
+//   - Rejects any ".." segment and NUL bytes (truncation attacks).
+//   - Rejects sub-0x20 control characters so log-injection CRLF can't
+//     smuggle through as a "safe" path segment.
 func isSafeRelPath(p string) bool {
 	if p == "" {
+		return false
+	}
+	if strings.ContainsRune(p, 0) {
 		return false
 	}
 	if strings.HasPrefix(p, "/") || strings.HasPrefix(p, `\`) {
@@ -157,6 +167,15 @@ func isSafeRelPath(p string) bool {
 	}
 	if filepath.IsAbs(p) {
 		return false
+	}
+	if len(p) >= 2 && p[1] == ':' &&
+		((p[0] >= 'A' && p[0] <= 'Z') || (p[0] >= 'a' && p[0] <= 'z')) {
+		return false
+	}
+	for _, r := range p {
+		if r < 0x20 {
+			return false
+		}
 	}
 	// Normalise and scan segments.
 	for _, seg := range strings.Split(filepath.ToSlash(p), "/") {

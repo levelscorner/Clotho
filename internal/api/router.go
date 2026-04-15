@@ -96,6 +96,12 @@ func NewRouter(deps Deps) chi.Router {
 			r.Use(middleware.Tenant)
 		}
 
+		// Default body cap — 1 MB is ample for all JSON mutations.
+		// Heavier routes (pipeline import) opt into larger caps via
+		// their own per-route middleware; lighter routes (execute)
+		// opt into tighter ones. See internal/api/middleware/bodylimit.go.
+		r.Use(middleware.BodyLimit(middleware.DefaultMaxBodyBytes))
+
 		handler.NewProjectHandler(deps.Projects).Routes(r)
 		handler.NewPipelineHandler(deps.Pipelines, deps.Projects, deps.PipelineVersions).Routes(r)
 		execHandler := handler.NewExecutionHandler(deps.Executions, deps.Pipelines, deps.PipelineVersions, deps.StepResults, deps.Queue)

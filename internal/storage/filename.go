@@ -111,8 +111,9 @@ func isSafeSlugRune(r rune) bool {
 }
 
 // isSafeFilename reports whether name is acceptable as a leaf filename.
-// Rejects empty strings, dotfiles (leading "."), path separators, and any
-// ".." segment.
+// Rejects empty strings, dotfiles (leading "."), path separators, ".."
+// segments, NUL bytes (truncation attack), Windows drive letters (C:foo),
+// and any sub-0x20 control character.
 func isSafeFilename(name string) bool {
 	if name == "" {
 		return false
@@ -125,6 +126,25 @@ func isSafeFilename(name string) bool {
 	}
 	if name == ".." || strings.Contains(name, "..") {
 		return false
+	}
+	// NUL byte — some filesystems + C calls truncate at NUL; the string that
+	// looks like "safe.txt\x00../../etc/passwd" would appear safe to naive
+	// checks and then reach into the parent directory at the syscall layer.
+	if strings.ContainsRune(name, 0) {
+		return false
+	}
+	// Windows drive letter (e.g. "C:foo") — would flip an intended relative
+	// write into an absolute one on Windows.
+	if len(name) >= 2 && name[1] == ':' &&
+		((name[0] >= 'A' && name[0] <= 'Z') || (name[0] >= 'a' && name[0] <= 'z')) {
+		return false
+	}
+	// Reject any control character. Display issues aside, CR/LF in filenames
+	// enables log-injection via path echoes.
+	for _, r := range name {
+		if r < 0x20 {
+			return false
+		}
 	}
 	return true
 }

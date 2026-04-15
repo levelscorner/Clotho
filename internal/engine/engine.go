@@ -135,8 +135,13 @@ func (e *Engine) ExecuteWorkflow(ctx context.Context, execution domain.Execution
 			}
 		}
 
-		// Create step result record
-		inputJSON, _ := json.Marshal(inputs)
+		// Create step result record. Swallowing the marshal error here
+		// would quietly corrupt the row (InputData becomes nil); fail the
+		// whole execution instead so the bug surfaces immediately.
+		inputJSON, err := json.Marshal(inputs)
+		if err != nil {
+			return e.failExecution(ctx, execution.ID, fmt.Sprintf("marshal inputs for node %s: %s", node.ID, err))
+		}
 		stepResult := domain.StepResult{
 			ID:          uuid.New(),
 			ExecutionID: execution.ID,
@@ -144,7 +149,7 @@ func (e *Engine) ExecuteWorkflow(ctx context.Context, execution domain.Execution
 			Status:      domain.StatusRunning,
 			InputData:   inputJSON,
 		}
-		stepResult, err := e.stepResults.Create(ctx, stepResult)
+		stepResult, err = e.stepResults.Create(ctx, stepResult)
 		if err != nil {
 			return e.failExecution(ctx, execution.ID, fmt.Sprintf("create step result for node %s: %s", node.ID, err))
 		}
@@ -408,7 +413,10 @@ func (e *Engine) RerunFromNode(ctx context.Context, execution domain.Execution, 
 			}
 		}
 
-		inputJSON, _ := json.Marshal(inputs)
+		inputJSON, err := json.Marshal(inputs)
+		if err != nil {
+			return e.failExecution(ctx, execution.ID, fmt.Sprintf("marshal inputs for node %s: %s", node.ID, err))
+		}
 		stepResult := domain.StepResult{
 			ID:          uuid.New(),
 			ExecutionID: execution.ID,
@@ -416,7 +424,7 @@ func (e *Engine) RerunFromNode(ctx context.Context, execution domain.Execution, 
 			Status:      domain.StatusRunning,
 			InputData:   inputJSON,
 		}
-		stepResult, err := e.stepResults.Create(ctx, stepResult)
+		stepResult, err = e.stepResults.Create(ctx, stepResult)
 		if err != nil {
 			return e.failExecution(ctx, execution.ID, fmt.Sprintf("create step result for node %s: %s", node.ID, err))
 		}
@@ -445,7 +453,14 @@ func (e *Engine) RerunFromNode(ctx context.Context, execution domain.Execution, 
 		chunks, resultCh, errCh := executor.ExecuteStream(nodeCtx, node, inputs)
 
 		for chunk := range chunks {
-			chunkData, _ := json.Marshal(chunk.Content)
+			// Marshal failure here is extraordinary — chunk.Content is a
+			// string. Log and skip the chunk so a pathological byte
+			// sequence doesn't kill the whole execution.
+			chunkData, mErr := json.Marshal(chunk.Content)
+			if mErr != nil {
+				slog.Warn("drop chunk: marshal failed", "node_id", node.ID, "error", mErr)
+				continue
+			}
 			e.eventBus.Publish(execution.ID, Event{
 				Type:        EventStepChunk,
 				ExecutionID: execution.ID,

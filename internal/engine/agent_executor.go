@@ -178,9 +178,21 @@ func (e *AgentExecutor) ExecuteStream(ctx context.Context, node domain.NodeInsta
 	errCh := make(chan error, 1)
 
 	go func() {
+		// Only close the chunks channel — the engine iterates it with
+		// `for chunk := range chunks` and needs the close to exit the
+		// loop. Closing result AND errCh on top of that would make the
+		// engine's downstream `select { case <-result; case <-errCh }`
+		// race: both closed channels are "ready" simultaneously, so Go
+		// picks one non-deterministically. If errCh wins on a success
+		// path, the engine reads execErr=nil AND stepOut=zero (Data=nil)
+		// and treats the node as successful-with-no-output — the exact
+		// symptom seen in production when step_results.output_data
+		// landed NULL after a 22-second Ollama run.
+		//
+		// result and errCh stay open — we always send on exactly one
+		// of them before returning, and the goroutine exit causes Go
+		// to GC the channels once the engine drops its references.
 		defer close(chunks)
-		defer close(result)
-		defer close(errCh)
 
 		var cfg domain.AgentNodeConfig
 		if err := json.Unmarshal(node.Config, &cfg); err != nil {

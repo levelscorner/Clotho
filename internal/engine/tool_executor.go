@@ -52,9 +52,12 @@ func (e *ToolExecutor) ExecuteStream(ctx context.Context, node domain.NodeInstan
 	errCh := make(chan error, 1)
 
 	go func() {
+		// Only close chunks (the engine iterates it with `for range`).
+		// Closing result AND errCh together causes the engine's
+		// `select { case <-result; case <-errCh }` to race — see the
+		// comment in agent_executor.go for the full failure mode. Send
+		// to exactly one of result / errCh and let them GC on exit.
 		defer close(chunks)
-		defer close(result)
-		defer close(errCh)
 
 		out, err := e.Execute(ctx, node, inputs)
 		if err != nil {

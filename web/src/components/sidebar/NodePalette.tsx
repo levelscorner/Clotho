@@ -51,10 +51,21 @@ function setDragData(event: DragEvent, payload: DragPayload): void {
 // Default configs
 // ---------------------------------------------------------------------------
 
+// Defaults for a bare Prompt Agent dragged from the sidebar.
+//
+// Local-first: Ollama + llama3.1 are always registered at startup
+// (cmd/clotho/main.go unconditionally adds "ollama" to the provider
+// registry, and llama3.1 is the model the sample pipeline already
+// uses). That means a user can drag a Prompt Agent, type a prompt,
+// click Run, and get text back without configuring any API keys —
+// matching the same path EmptyCanvasState uses for the sample.
+//
+// Switch provider/model in the inspector to target OpenAI, Gemini,
+// or OpenRouter once keys are configured in Settings.
 function blankAgentConfig(): AgentNodeConfig {
   return {
-    provider: 'openai',
-    model: 'gpt-4o',
+    provider: 'ollama',
+    model: 'llama3.1',
     role: { system_prompt: '', persona: '' },
     task: { task_type: 'custom', output_type: 'text', template: '' },
     temperature: 0.7,

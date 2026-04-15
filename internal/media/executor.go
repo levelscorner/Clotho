@@ -144,9 +144,11 @@ func (e *MediaExecutor) ExecuteStream(ctx context.Context, node domain.NodeInsta
 	errCh := make(chan error, 1)
 
 	go func() {
+		// Only close chunks — the engine iterates it with `for range`.
+		// Closing result AND errCh would make the engine's downstream
+		// select race (see agent_executor.go for the full failure
+		// mode). Send on exactly one terminal channel and let them GC.
 		defer close(chunks)
-		defer close(result)
-		defer close(errCh)
 
 		cfg, err := parseMediaConfig(node)
 		if err != nil {

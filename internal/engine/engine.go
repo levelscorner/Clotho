@@ -9,6 +9,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
+
 	"github.com/user/clotho/internal/domain"
 	"github.com/user/clotho/internal/storage"
 	"github.com/user/clotho/internal/store"
@@ -20,17 +24,23 @@ import (
 const manifestOutputPreviewBytes = 1024
 
 // Engine orchestrates the execution of a pipeline graph.
+//
+// tracer is the OTel tracer used to emit workflow.execution + workflow.node
+// spans. NewEngine defaults it to a no-op so existing call sites keep
+// working; cmd/clotho wires a real tracer when OTel is enabled.
 type Engine struct {
 	registry    *ExecutorRegistry
 	eventBus    *EventBus
 	executions  store.ExecutionStore
 	stepResults store.StepResultStore
 	fileStore   storage.Store
+	tracer      trace.Tracer
 }
 
 // NewEngine creates a new Engine with the given dependencies. fileStore may be
 // nil; when nil, the engine skips manifest writes and per-node Location
-// plumbing is a no-op for downstream executors.
+// plumbing is a no-op for downstream executors. The tracer defaults to no-op;
+// use NewEngineWithTracer to inject a real one.
 func NewEngine(
 	registry *ExecutorRegistry,
 	eventBus *EventBus,
@@ -38,18 +48,55 @@ func NewEngine(
 	stepResults store.StepResultStore,
 	fileStore storage.Store,
 ) *Engine {
+	return NewEngineWithTracer(registry, eventBus, executions, stepResults, fileStore,
+		noop.NewTracerProvider().Tracer("clotho/noop"))
+}
+
+// NewEngineWithTracer is the explicit-tracer constructor used by main.go
+// and OTel tests. Pass an in-memory recorder in tests; pass an OTLP- or
+// stdout-backed tracer in production.
+func NewEngineWithTracer(
+	registry *ExecutorRegistry,
+	eventBus *EventBus,
+	executions store.ExecutionStore,
+	stepResults store.StepResultStore,
+	fileStore storage.Store,
+	tracer trace.Tracer,
+) *Engine {
+	if tracer == nil {
+		tracer = noop.NewTracerProvider().Tracer("clotho/noop")
+	}
 	return &Engine{
 		registry:    registry,
 		eventBus:    eventBus,
 		executions:  executions,
 		stepResults: stepResults,
 		fileStore:   fileStore,
+		tracer:      tracer,
 	}
 }
 
 // ExecuteWorkflow validates, sorts, and executes each node in the pipeline graph.
 func (e *Engine) ExecuteWorkflow(ctx context.Context, execution domain.Execution, graph domain.PipelineGraph) error {
 	startTime := time.Now()
+
+	// Open the root workflow span. Persist the trace ID immediately so
+	// even an early-failure path (graph validation, topo-sort) leaves a
+	// trace_id on the execution row for diagnostic correlation.
+	ctx, rootSpan := e.tracer.Start(ctx, "workflow.execution",
+		trace.WithAttributes(
+			attribute.String("execution.id", execution.ID.String()),
+			attribute.String("tenant.id", execution.TenantID.String()),
+			attribute.Int("graph.node_count", len(graph.Nodes)),
+			attribute.Int("graph.edge_count", len(graph.Edges)),
+		),
+	)
+	defer rootSpan.End()
+	if traceID := rootSpan.SpanContext().TraceID(); traceID.IsValid() {
+		if err := e.executions.SetTraceID(ctx, execution.ID, traceID.String()); err != nil {
+			slog.Warn("failed to persist trace_id", "error", err)
+		}
+	}
 
 	// Pull the top-level Location attached by the worker (project/pipeline
 	// slugs + execution ID). If absent, the storage layer falls back to the
@@ -214,9 +261,19 @@ func (e *Engine) ExecuteWorkflow(ctx context.Context, execution domain.Execution
 		// nodes of a long pipeline.
 		timeoutCtx, cancelTimeout := context.WithTimeout(nodeCtx, stepTimeoutFor(node))
 
+		// Per-node span — child of the workflow.execution root. Closed
+		// explicitly after the node finishes (success or failure) so the
+		// span tree mirrors the actual execution shape.
+		nodeCtxTraced, nodeSpan := e.tracer.Start(timeoutCtx, "workflow.node",
+			trace.WithAttributes(
+				attribute.String("node.id", node.ID),
+				attribute.String("node.type", string(node.Type)),
+			),
+		)
+
 		// Execute with streaming
 		start := time.Now()
-		chunks, resultCh, errCh := executor.ExecuteStream(timeoutCtx, node, inputs)
+		chunks, resultCh, errCh := executor.ExecuteStream(nodeCtxTraced, node, inputs)
 
 		// Forward streaming chunks as events. Payload must be a JSON object
 		// with a named `chunk` field so the frontend can read it directly
@@ -252,6 +309,14 @@ func (e *Engine) ExecuteWorkflow(ctx context.Context, execution domain.Execution
 		if execErr != nil {
 			cancelTimeout()
 			errStr := redact.Secrets(execErr.Error())
+
+			// Tag the node span with the failure class so OTel
+			// dashboards can group by class without re-parsing the
+			// step_results table.
+			if failure, ok := AsFailure(execErr); ok {
+				nodeSpan.SetAttributes(attribute.String("failure.class", string(failure.Class)))
+			}
+			nodeSpan.End()
 
 			// Recover the structured StepFailure (when the executor
 			// returned *FailureError) or classify the raw error so the
@@ -375,6 +440,15 @@ func (e *Engine) ExecuteWorkflow(ctx context.Context, execution domain.Execution
 			Data:        completionPayload,
 			Timestamp:   time.Now(),
 		})
+		// Tag the success span with token + cost metrics so a quick
+		// trace-tree view shows pipeline cost distribution at a glance.
+		if stepOut.TokensUsed != nil {
+			nodeSpan.SetAttributes(attribute.Int("tokens_used", *stepOut.TokensUsed))
+		}
+		if stepOut.CostUSD != nil {
+			nodeSpan.SetAttributes(attribute.Float64("cost_usd", *stepOut.CostUSD))
+		}
+		nodeSpan.End()
 		cancelTimeout()
 	}
 

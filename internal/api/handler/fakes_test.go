@@ -196,6 +196,18 @@ func (s *fakeExecutionStore) SetFailure(_ context.Context, id uuid.UUID, failure
 	return nil
 }
 
+func (s *fakeExecutionStore) SetTraceID(_ context.Context, id uuid.UUID, traceID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	e, ok := s.executions[id]
+	if !ok {
+		return fmt.Errorf("not found")
+	}
+	e.TraceID = &traceID
+	s.executions[id] = e
+	return nil
+}
+
 func (s *fakeExecutionStore) UpdateCost(_ context.Context, id uuid.UUID, totalCost float64, totalTokens int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

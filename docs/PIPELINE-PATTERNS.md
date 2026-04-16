@@ -287,12 +287,132 @@ B5 (fan-out) with cancellation fired while the script agent is still streaming.
 
 ---
 
+### B13. Retry recovers transient failure
+
+```
+Agent(provider 503 first call, OK second call)
+```
+
+**Why:** Phase A's reliability work wraps every provider call in a retry loop driven by `failure.Retryable`. A transient 503 should be retried automatically and the user should never see a step_failed event when the retry succeeds.
+
+**Setup:** scripted `flakyProvider` returns one 503 then succeeds. Agent's `MaxRetries` defaults to 3.
+
+**Landing:**
+
+| Element | Expected |
+|---|---|
+| Provider call count | 2 (one fail, one success) |
+| step_results | exactly 1 row, status=completed |
+| Execution | status=completed |
+| SSE | no step_failed; one step_completed |
+
+**Locked in:** `internal/engine/pipeline_patterns_b13_b14_test.go::TestPattern_B13_RetryRecoversTransient`.
+
+---
+
+### B14. Circuit breaker opens after threshold
+
+```
+3 agents, same (openai, gpt-4o-mini), all fail with retryable 503
+```
+
+**Why:** Once a provider+model has flapped past the breaker's open threshold, subsequent calls short-circuit with `FailureCircuitOpen` instead of hitting the wire. Saves cost + latency during a real provider outage.
+
+**Setup:** `BreakerConfig{OpenThreshold: 2, ...}`, scripted provider always 503. Engine still aborts after the first failed node (B11), so the test asserts the breaker state directly via `BreakerRegistry.For(...)` after one round.
+
+**Landing:**
+
+| Element | Expected |
+|---|---|
+| First failure | trips Degraded |
+| Second failure | trips Open |
+| Subsequent `Allow()` | returns `ErrCircuitOpen` |
+| step_results | 1 row (engine aborts on first failure per B11) |
+
+**Locked in:** `internal/engine/pipeline_patterns_b13_b14_test.go::TestPattern_B14_BreakerOpensAfterThreshold`.
+
+---
+
+### B15. Pinned node short-circuits the executor
+
+```
+Agent(upstream, pinned=true, output="frozen") ──text──▶ Agent(downstream)
+```
+
+**Why:** Phase B's pin feature lets creators iterate on a downstream prompt without re-paying for upstream LLM calls. Engine consults `node.Pinned + node.PinnedOutput` BEFORE dispatching to the executor.
+
+**Setup:** upstream's scripted executor returns an error (would explode if called). Pin is set with cached output. Test asserts the executor was never invoked for the upstream node, downstream still ran with the pinned value as input, and the pinned step appears in step_results as completed.
+
+**Landing:**
+
+| Node | Executor called? | Status | Output |
+|---|---|---|---|
+| upstream (pinned) | NO | completed | the pinned value |
+| downstream | yes | completed | normal output |
+
+**SSE:** upstream emits step_started + step_completed (with `pinned: true` in payload) so the canvas reflects the no-op.
+
+**Locked in:** `internal/engine/pipeline_patterns_b15_b16_test.go::TestPattern_B15_PinnedSkipsExecutor`.
+
+---
+
+### B16. on_failure=skip continues the pipeline
+
+```
+Agent(flaky, on_failure=skip) + Agent(independent)  -- no edges between
+```
+
+**Why:** Per-node `OnFailure` policy lets one branch flake without aborting the whole execution. `skip` records the failure but downstream sees no input from the failed node.
+
+**Setup:** flaky agent's executor returns an error; independent agent succeeds. They share no edges so the engine should run both and finish.
+
+**Landing:**
+
+| Element | Expected |
+|---|---|
+| flaky step_result | status=failed (failure recorded) |
+| independent step_result | status=completed |
+| Execution | status=completed (NOT failed — skip continues) |
+| ExecuteWorkflow returns | nil |
+
+**Locked in:** `internal/engine/pipeline_patterns_b15_b16_test.go::TestPattern_B16_OnFailureSkipContinuesPipeline`. `OnFailureContinue` is similar but pipes the StepFailure JSON downstream — covered separately when the integration ships.
+
+---
+
+## 3a. Failure classes (Phase A vocabulary)
+
+Every failure surfaces as a `domain.StepFailure` with one of these classes. The FailureDrawer color-codes per class; the breaker counts only retryable classes; the retry loop only retries when `Retryable=true`.
+
+| Class | Retryable | Trips breaker | Color | Hint surface |
+|---|---|---|---|---|
+| `network` | ✓ | ✓ | gray | "Network blip; check connectivity" |
+| `timeout` | ✓ | ✓ | amber | "Increase step timeout or pick smaller model" |
+| `rate_limit` | ✓ | ✓ | amber | "Provider throttling; retry will back off" |
+| `provider_5xx` | ✓ | ✓ | amber | "Provider outage; retries continue" |
+| `auth` | ✗ | ✗ | red | "Verify API key in Settings" |
+| `provider_4xx` | ✗ | ✗ | purple | "Provider rejected; check model + params" |
+| `validation` | retryable* | ✗ | purple | "Inspect upstream node's output" |
+| `output_shape` | ✗ | ✗ | purple | "Wrong content type returned (e.g. text in audio port)" |
+| `output_quality` | ✗ | ✗ | purple | (deferred — toxicity/PII) |
+| `cost_cap` | ✗ | ✗ | amber | "Raise cap or switch model" |
+| `circuit_open` | ✗ | ✗ | red-outline | "Cooldown active; retry later" |
+| `internal` | ✗ | ✗ | red | "Clotho bug; copy diagnostic, file issue" |
+
+\* `validation.retryable=true` covers JSON-schema mismatches an LLM may comply with on a second attempt; output_shape is non-retryable because shape failures usually mean the wrong model is selected.
+
+Adding a new class requires updating: (a) `internal/domain/failure.go::FailureClass` const block, (b) classifier branches in `internal/engine/failure.go::ClassifyProviderError`, (c) badge color in `web/src/components/execution/FailureDrawer.tsx::CLASS_COLORS`, (d) the union in `web/src/lib/types.ts::FailureClass`, (e) this table.
+
+---
+
 ## 4. What each surface sees (the landing cheatsheet)
 
 Concise mapping of "where does each piece of output land":
 
 - `step_results.output_data` (Postgres JSONB) — every successful step. For text/json nodes: the output inline. For media nodes: a `clotho://file/{rel}` URL string.
-- `step_results.error` (TEXT) — scrubbed error message on failure. Shape is free-form; matched against `errorRemediation.ts` catalog in the UI.
+- `step_results.error` (TEXT) — scrubbed 1-line error summary on failure. Kept for back-compat.
+- `step_results.failure_json` (JSONB, Phase A) — structured `domain.StepFailure` with class + stage + retryable + hint + cause + attempts. The FailureDrawer reads this; the executions list filters on it.
+- `executions.failure_json` (JSONB, Phase A) — structured failure for the FIRST failed step that caused execution to fail. Index `idx_executions_failure_class` powers `?status=failed&class=X` queries.
+- `executions.trace_id` (TEXT, Phase A) — OTel root span ID; surfaced via FailureDrawer's "Copy diagnostic" button. Currently nullable until OTel exporter ships.
 - `step_results.tokens_used`, `cost_usd`, `duration_ms` — per-step metrics; populated from StepOutput returned by the executor.
 - `executions.total_cost`, `total_tokens` — rolled up on `Complete`.
 - Disk: `{DataDir}/{project_slug}/{pipeline_slug}/{execution_id}/{node-*.ext}` via `storage.LocalStore`. `DataDir` defaults to `~/Documents/Clotho/`.

@@ -66,6 +66,11 @@ type ExecutionStore interface {
 	// failureJSON nil clears the column. Used by the engine when the
 	// "tell-me-why-it-broke" UX needs more than a string.
 	SetFailure(ctx context.Context, id uuid.UUID, failureJSON json.RawMessage, errMsg *string) error
+	// SetTraceID persists the OTel root span ID for diagnostic
+	// correlation. Engine writes it once at workflow start so
+	// FailureDrawer's "Copy diagnostic" can include it. No-op-safe to
+	// call with empty string when OTel is disabled.
+	SetTraceID(ctx context.Context, id uuid.UUID, traceID string) error
 	UpdateCost(ctx context.Context, id uuid.UUID, totalCost float64, totalTokens int) error
 	Complete(ctx context.Context, id uuid.UUID, totalCost float64, totalTokens int) error
 	Cancel(ctx context.Context, id, tenantID uuid.UUID) error

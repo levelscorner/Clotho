@@ -125,8 +125,23 @@ func main() {
 	// Create event bus
 	eventBus := engine.NewEventBus()
 
-	// Create engine
-	eng := engine.NewEngine(registry, eventBus, executionStore, stepResultStore, fileStore)
+	// OTel tracer — defaults to no-op unless OTEL_EXPORTER=stdout. The
+	// shutdown function flushes pending spans on process exit.
+	tracer, tracerShutdown, err := engine.NewTracer(ctx)
+	if err != nil {
+		slog.Error("failed to init OTel tracer", "error", err)
+		os.Exit(1)
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := tracerShutdown(shutdownCtx); err != nil {
+			slog.Warn("OTel tracer shutdown error", "error", err)
+		}
+	}()
+
+	// Create engine with tracer (no-op when OTEL_EXPORTER unset).
+	eng := engine.NewEngineWithTracer(registry, eventBus, executionStore, stepResultStore, fileStore, tracer)
 
 	// Create queue
 	q := queue.NewQueue(jobStore)

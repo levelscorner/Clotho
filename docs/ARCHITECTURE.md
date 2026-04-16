@@ -226,16 +226,90 @@ This is the complete flow from "user clicks Run" to "output appears on canvas."
     → On execution_completed: close EventSource, show final state
 ```
 
-### Error Handling Flow
+### Error Handling Flow (Phase A — structured failures)
+
+The pre-Phase-A path persisted only `error *string` and surfaced it as a red pill. Phase A replaced that with a typed flow so the FailureDrawer can render class-coded badges, hints, and retry CTAs.
 
 ```
-Node execution fails:
-  → StepResult: status="failed", error message stored
-  → Event: step_failed published
-  → Engine: failExecution() → Execution status="failed" with error
-  → Event: execution_failed published
-  → Frontend: node shows red X, error in inspector, execution status bar shows "Failed"
+Provider call returns err
+  ↓
+1. ClassifyProviderError(err, provider, model) →
+     domain.StepFailure{
+       Class:     network|timeout|rate_limit|auth|provider_5xx|...
+       Stage:     provider_call (default)
+       Retryable: true for transient classes only
+       Message:   redact.Secrets(humanMessage(class, err))
+       Cause:     redact.Secrets(err.Error())
+       Hint:      hintFor[class]    // "Verify the API key in Settings."
+       Attempts:  N                 // bumped by retry loop
+     }
+  ↓
+2. AgentExecutor returns *FailureError{Failure: ...} to errCh
+  ↓
+3. Engine: AsFailure(execErr) recovers the structured payload (or
+   classifies the raw error as fallback)
+  ↓
+4. Per-node OnFailure policy routes the next step:
+   - "abort" (default): persist + fail execution + return
+   - "skip":            persist failure, continue with no upstream value
+   - "continue":        persist failure, pipe failure JSON downstream
+  ↓
+5. Persist:
+   - step_results.error TEXT    (1-line summary, back-compat)
+   - step_results.failure_json  (structured StepFailure)
+   - executions.failure_json    (FIRST failed step, indexed by class)
+  ↓
+6. Publish step_failed event with payload {failure: {...}, error: "..."}
+  ↓
+7. Frontend SSE → executionStore.updateStep() → StepResult.failure
+  ↓
+8. UI surfaces:
+   - AgentNode: red border + hover tooltip {Class · provider · attempt N}
+   - Inspector: error pill click → opens FailureDrawer
+   - Top bar: "N failures — why?" CTA → opens FailureDrawer
+   - Executions page: "Why?" button per failed row → opens FailureDrawer
 ```
+
+### Reliability Wrappers (Phase A)
+
+Each provider call goes through a stack:
+
+```
+agent_executor.go
+  ↓
+retryWithBackoff(ctx, policy, retryable, fn)   // 3 attempts, 500ms→5s
+  ↓
+BreakerProvider                                // Allow → call → record
+  ↓
+llm.Provider                                   // OpenAI / Gemini / Ollama / OpenRouter
+```
+
+- **Timeout**: per-step `context.WithTimeout` (default 120s, override via `cfg.StepTimeoutSec`).
+- **Retry**: only when `failure.Retryable=true`. Auth failures short-circuit immediately so a wrong API key doesn't burn 3 attempts.
+- **Breaker**: per-`(provider, model)` 4-state (Closed→Degraded→Open→HalfOpen). Auth failures and other non-retryable classes don't count toward the open threshold.
+- **Output validation**: post-stream, magic-byte sniff for media ports + JSON Schema for json ports. Failures land as `output_shape` / `validation` classes.
+
+### Pin / On-Failure Short-Circuits (Phase B)
+
+The engine's per-node loop checks node-level state BEFORE dispatching to the executor:
+
+```
+for node in sortedNodes:
+  if node.Pinned and node.PinnedOutput != nil:
+      nodeOutputs[node.ID] = node.PinnedOutput
+      emit step_completed{pinned: true}
+      continue                  // skip executor entirely
+
+  ... normal execution ...
+
+  if execErr != nil:
+      switch node.OnFailure:
+        case "skip":     continue
+        case "continue": nodeOutputs[node.ID] = failureBytes; continue
+        default:         return failExecution(...)
+```
+
+Both features are creator-facing in the inspector's Reliability section.
 
 ### Zombie Recovery Flow
 
@@ -267,8 +341,8 @@ Worker crashes mid-execution:
 
 | Table | Purpose | Key Columns |
 |-------|---------|-------------|
-| `executions` | Pipeline run records | id, pipeline_version_id, status, total_cost, total_tokens |
-| `step_results` | Per-node execution data | id, execution_id, node_id, input/output JSONB, tokens_used, cost_usd |
+| `executions` | Pipeline run records | id, pipeline_version_id, status, total_cost, total_tokens, **failure_json** (Phase A), **trace_id** (Phase A) |
+| `step_results` | Per-node execution data | id, execution_id, node_id, input/output JSONB, tokens_used, cost_usd, **failure_json** (Phase A) |
 | `job_queue` | Postgres-backed work queue | id, execution_id, status, claimed_by, last_ping |
 
 ### Key Indexes
@@ -276,6 +350,7 @@ Worker crashes mid-execution:
 - `idx_job_queue_poll` — partial index on `(created_at) WHERE status='pending'` for SKIP LOCKED
 - `idx_step_results_execution` — for fetching all steps of an execution
 - `idx_executions_tenant` — for listing user's executions
+- `idx_executions_failure_class` — partial JSONB index on `(failure_json->>'class') WHERE failure_json IS NOT NULL`, powers `?status=failed&class=auth` queries on the executions page
 
 ### JSONB Usage
 
@@ -324,7 +399,8 @@ clotho/
 │   │   ├── node.go                  # NodeInstance, NodeType, PortType, Port, Position
 │   │   ├── edge.go                  # Edge, CanConnect() compatibility matrix
 │   │   ├── pipeline.go              # Pipeline, PipelineVersion, PipelineGraph
-│   │   ├── execution.go             # Execution, StepResult, ExecutionStatus
+│   │   ├── execution.go             # Execution, StepResult, ExecutionStatus (+ FailureJSON, TraceID Phase A)
+│   │   ├── failure.go               # StepFailure, FailureClass (12), FailureStage (5) — Phase A
 │   │   ├── preset.go                # AgentPreset (7 built-in)
 │   │   ├── project.go               # Project
 │   │   ├── credential.go            # Credential (plaintext Phase 1)
@@ -332,10 +408,20 @@ clotho/
 │   ├── engine/                      # Workflow execution
 │   │   ├── graph.go                 # ValidateGraph, TopoSort (Kahn's algorithm)
 │   │   ├── executor.go              # StepExecutor interface, StepOutput, ExecutorRegistry
-│   │   ├── engine.go                # ExecuteWorkflow loop
-│   │   ├── agent_executor.go        # AgentExecutor: role+task → prompt → LLM → output
+│   │   ├── engine.go                # ExecuteWorkflow loop (pin short-circuit + on-failure branching)
+│   │   ├── agent_executor.go        # AgentExecutor: role+task → prompt → retry → breaker → LLM → output → validate
 │   │   ├── tool_executor.go         # ToolExecutor: passthrough content/URL
-│   │   └── events.go                # EventBus (pub/sub), Event types
+│   │   ├── failure.go               # ClassifyProviderError + FailureError wrapper (Phase A)
+│   │   ├── breaker.go               # 4-state circuit breaker per (provider, model) (Phase A)
+│   │   ├── breaker_provider.go      # BreakerProvider wraps llm.Provider (Phase A)
+│   │   ├── retry.go                 # retryWithBackoff helper, no external dep (Phase A)
+│   │   ├── timeout.go               # stepTimeoutFor: per-node deadline (Phase A)
+│   │   ├── validate_output.go       # Magic-byte + JSON-schema output validation (Phase A)
+│   │   ├── agent_output.go          # writeAgentOutputFile + clotho://file URL minting
+│   │   ├── pipeline_patterns_test.go         # B1-B12 contract tests
+│   │   ├── pipeline_patterns_b13_b14_test.go # Retry recovery + breaker trip
+│   │   ├── pipeline_patterns_b15_b16_test.go # Pin + on-failure skip
+│   │   └── events.go                # EventBus (pub/sub), Event types (failure rides in Data payload)
 │   ├── llm/                         # LLM provider abstraction
 │   │   ├── provider.go              # Provider interface (Complete, Stream)
 │   │   ├── registry.go              # ProviderRegistry (maps name → Provider)
@@ -366,21 +452,37 @@ clotho/
 │   └── migrations.go                # embed.FS
 └── web/                             # React frontend
     └── src/
-        ├── lib/types.ts             # TypeScript domain types (mirrors Go)
-        ├── lib/portCompatibility.ts  # Port type matrix + PORT_COLORS
-        ├── lib/api.ts               # Typed fetch wrapper
+        ├── lib/types.ts             # TypeScript domain types (mirrors Go) + StepFailure + OnFailurePolicy
+        ├── lib/portCompatibility.ts  # Port type matrix + PORT_COLORS (text family unified)
+        ├── lib/llmCapabilities.ts    # Per-provider knob support (Phase 1)
+        ├── lib/failureSchema.ts      # coerceStepFailure defensive validator (Phase A)
+        ├── lib/api.ts               # Typed fetch wrapper + executions/credentials/testNode helpers
         ├── stores/                   # Zustand
-        │   ├── pipelineStore.ts      # Canvas state (nodes, edges, save/load)
-        │   ├── executionStore.ts     # Execution + SSE streaming
+        │   ├── pipelineStore.ts      # Canvas state (nodes, edges, save/load, setNodePin, setNodeOnFailure)
+        │   ├── executionStore.ts     # Execution + SSE streaming + structured failure parsing
         │   └── projectStore.ts       # Project/pipeline listing
         ├── components/
         │   ├── canvas/PipelineCanvas.tsx   # React Flow wrapper + DnD
-        │   ├── canvas/nodes/AgentNode.tsx  # Agent renderer (React.memo)
+        │   ├── canvas/ValidationModal.tsx  # Save-time validation modal (Phase B B8)
+        │   ├── canvas/nodes/AgentNode.tsx  # Agent renderer + failure tooltip (React.memo)
         │   ├── canvas/nodes/ToolNode.tsx   # Tool renderer (React.memo)
+        │   ├── canvas/nodes/MediaNode.tsx  # Media renderer
         │   ├── canvas/nodes/BaseNode.tsx   # Shared handles + status overlay
-        │   ├── sidebar/NodePalette.tsx     # Drag source (presets + tools)
-        │   ├── inspector/                  # Config panels (Agent, Tool, Execution)
-        │   └── execution/                  # RunButton, ExecutionStatus bar
+        │   ├── sidebar/NodePalette.tsx     # Drag source (4 modalities + tools)
+        │   ├── inspector/                  # Config panels — AgentInspector composes:
+        │   │   ├── sections/VariablesSection.tsx
+        │   │   ├── sections/SamplingSection.tsx
+        │   │   ├── sections/ReliabilitySection.tsx  # Pin + on-failure (Phase B)
+        │   │   └── TestStepButton.tsx              # POST /api/nodes/test (Phase B B4)
+        │   ├── execution/
+        │   │   ├── RunButton.tsx
+        │   │   ├── ExecutionStatus.tsx     # + failure-count CTA opens drawer (Phase A)
+        │   │   ├── FailureDrawer.tsx       # Class badge, hint, copy diagnostic, rerun (Phase A)
+        │   │   └── OpenFolderButton.tsx
+        │   └── settings/SettingsPanel.tsx  # + per-credential Test button (Phase B B1)
+        ├── pages/
+        │   ├── DevNodes.tsx          # Dev-only node renderer playground
+        │   └── ExecutionsPage.tsx    # /executions list + retry + drawer (Phase B B5+B6)
         ├── hooks/useSSE.ts           # EventSource lifecycle hook
         └── styles/                   # global.css, nodes.css
 ```
@@ -610,6 +712,16 @@ Cost is tracked at three levels:
 | 14 | Gemini uses raw HTTP, not SDK | net/http | Avoids heavy google-cloud-go dependency for a simple REST call. | 2026-04-06 |
 | 15 | Credential store wired to executor | Per-node API keys | Users can store multiple keys and assign per agent node. | 2026-04-06 |
 | 16 | Input validation on all handlers | 400 with specific errors | Prevents cryptic downstream failures from malformed requests. | 2026-04-06 |
+| 17 | Structured `domain.StepFailure` | Replace `error *string` with class+stage+hint+cause+attempts JSON | Frontend FailureDrawer needs class for badge, hint for CTA, cause for diagnostic — string-only path made polished UX impossible. | 2026-04-16 |
+| 18 | Per-`(provider,model)` circuit breaker | Hand-rolled 4-state (Closed/Degraded/Open/HalfOpen) | research1.md spec needs Degraded state that sony/gobreaker doesn't have. Auth failures don't trip the breaker — they need a human, not a wait. | 2026-04-16 |
+| 19 | Retry only initial Stream call | 3 attempts, 500ms→5s backoff, retryable-only | Mid-stream retry would replay chunks the user already saw. Initial-fail retry covers transient 503s without UX confusion. | 2026-04-16 |
+| 20 | Output validation: structural + semantic | h2non/filetype magic-bytes + santhosh-tekuri/jsonschema | Catches the canonical "TTS returned text" failure mode at the engine boundary, not in the user's downloaded .txt. | 2026-04-16 |
+| 21 | `Pinned + PinnedOutput` on NodeInstance | Top-level fields, not in per-type config | Pinning is universal across node types; engine consults before dispatch. Saves $$ during downstream prompt iteration. | 2026-04-16 |
+| 22 | Per-node `OnFailure` policy | abort (default) / skip / continue enum | Fan-out pipelines need branch-level resilience. `continue` pipes the StepFailure JSON downstream so an error-handler agent can react. | 2026-04-16 |
+| 23 | Save-time `ValidateGraph` enforcement | 400 with `validation_errors[]` array | Silent edge-drop in `pipelineStore.onConnect` was the worst UX regression in the app. Backend rejects bad graphs at save time; frontend opens a "Click to fix" modal. | 2026-04-16 |
+| 24 | Credential test endpoint | 1-token ping completion via stored key | Catches FailureAuth at config time, not the first run. Returns 200 with structured `failure` JSON for the SettingsPanel badge. | 2026-04-16 |
+| 25 | "Test step in isolation" handler | `POST /api/nodes/test`, no DB writes | Cuts iteration loop from minutes to seconds. Reuses the live executor stack so the failure surface matches a real run. | 2026-04-16 |
+| 26 | TDD baseline locked | `feedback_tdd` memory + `superpowers:test-driven-development` skill | After founder request 2026-04-17. Going forward: failing test first, then implementation. | 2026-04-17 |
 
 ---
 

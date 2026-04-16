@@ -160,6 +160,21 @@ func (s *ExecutionStore) Complete(ctx context.Context, id uuid.UUID, totalCost f
 	return nil
 }
 
+// SetTraceID persists the OTel root span ID on the execution row.
+// Called once at workflow start; safe to skip with empty string when
+// OTel is disabled (we still write to keep the row consistent).
+func (s *ExecutionStore) SetTraceID(ctx context.Context, id uuid.UUID, traceID string) error {
+	tag, err := s.pool.Exec(ctx,
+		`UPDATE executions SET trace_id = $1 WHERE id = $2`, traceID, id)
+	if err != nil {
+		return fmt.Errorf("execution set trace_id: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("execution set trace_id: not found")
+	}
+	return nil
+}
+
 // SetFailure persists the structured StepFailure (as JSONB) on the
 // execution row plus the 1-line summary for back-compat. errMsg may be
 // nil to leave the existing summary alone.

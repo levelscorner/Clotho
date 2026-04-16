@@ -22,6 +22,7 @@ import type {
 import { canConnect } from '../lib/portCompatibility';
 import { api } from '../lib/api';
 import { useHistoryStore } from './historyStore';
+import { useExecutionStore } from './executionStore';
 
 // ---------------------------------------------------------------------------
 // Custom node type alias
@@ -111,6 +112,14 @@ interface PipelineState {
     ) => AgentNodeConfig | ToolNodeConfig | MediaNodeConfig,
   ) => void;
   updateNodeLabel: (nodeId: string, label: string) => void;
+  /**
+   * Toggle pin on a node. When pinning, snapshot the node's most recent
+   * successful execution output (from executionStore) so the engine has
+   * something to serve. Unpinning clears pinnedOutput.
+   */
+  setNodePin: (nodeId: string, pinned: boolean) => void;
+  /** Set the per-node on-failure policy. */
+  setNodeOnFailure: (nodeId: string, policy: 'abort' | 'skip' | 'continue') => void;
   onNodesChange: (changes: NodeChange<PipelineNode>[]) => void;
   onEdgesChange: (changes: EdgeChange<RFEdge>[]) => void;
   onConnect: (connection: Connection) => void;
@@ -289,6 +298,48 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
     }));
   },
 
+  setNodePin: (nodeId, pinned) => {
+    const { nodes, edges } = get();
+    debouncedHistoryPush(nodes, edges);
+    // Snapshot the most recent successful output from executionStore
+    // when pinning. If the node hasn't run yet there's nothing to pin —
+    // the inspector disables the checkbox in that case, but guard here
+    // anyway so a stale UI can't pin an empty value.
+    const stepResult = useExecutionStore.getState().stepResults.get(nodeId);
+    const snapshot =
+      pinned && stepResult?.status === 'completed' && stepResult.output != null
+        ? stepResult.output
+        : undefined;
+    set((state) => ({
+      nodes: state.nodes.map((n): PipelineNode => {
+        if (n.id !== nodeId) return n;
+        return {
+          ...n,
+          data: {
+            ...n.data,
+            pinned,
+            // Clear pinnedOutput on unpin so re-runs get a fresh value.
+            pinnedOutput: pinned ? snapshot ?? n.data.pinnedOutput : undefined,
+          },
+        };
+      }),
+      isDirty: true,
+    }));
+  },
+
+  setNodeOnFailure: (nodeId, policy) => {
+    const { nodes, edges } = get();
+    debouncedHistoryPush(nodes, edges);
+    set((state) => ({
+      nodes: state.nodes.map((n): PipelineNode =>
+        n.id === nodeId
+          ? { ...n, data: { ...n.data, onFailure: policy } }
+          : n,
+      ),
+      isDirty: true,
+    }));
+  },
+
   updateNodeLabel: (nodeId, label) => {
     const { nodes, edges } = get();
     debouncedHistoryPush(nodes, edges);
@@ -394,6 +445,12 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
         position: { x: n.position.x, y: n.position.y },
         ports: n.data.ports,
         config: n.data.config as AgentNodeConfig | ToolNodeConfig,
+        // Phase B reliability fields. Backend NodeInstance carries
+        // them as top-level columns alongside `config`. Omit when
+        // unset so existing pipelines round-trip cleanly.
+        pinned: n.data.pinned ? true : undefined,
+        pinned_output: n.data.pinned ? n.data.pinnedOutput : undefined,
+        on_failure: n.data.onFailure,
       })),
       edges: edges.map((e) => ({
         id: e.id,
@@ -418,9 +475,19 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
     const graph = version.graph;
 
     const nodes: PipelineNode[] = graph.nodes.map((ni): PipelineNode => {
+      // Reliability fields ride on every node-data variant. Pull them
+      // off the wire NodeInstance and drop into data so the inspector
+      // can read node.data.pinned / .onFailure without reaching into
+      // a separate map.
+      const reliability = {
+        pinned: ni.pinned,
+        pinnedOutput: ni.pinned_output,
+        onFailure: ni.on_failure,
+      };
       const data: PipelineNodeData =
         ni.type === 'agent'
           ? {
+              ...reliability,
               nodeType: 'agent' as const,
               label: ni.label,
               ports: ni.ports,
@@ -428,12 +495,14 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
             }
           : ni.type === 'media'
             ? {
+                ...reliability,
                 nodeType: 'media' as const,
                 label: ni.label,
                 ports: ni.ports,
                 config: ni.config as MediaNodeConfig,
               }
             : {
+                ...reliability,
                 nodeType: 'tool' as const,
                 label: ni.label,
                 ports: ni.ports,

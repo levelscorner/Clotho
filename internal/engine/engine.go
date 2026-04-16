@@ -178,6 +178,35 @@ func (e *Engine) ExecuteWorkflow(ctx context.Context, execution domain.Execution
 		nodeLoc.NodeID = node.ID
 		nodeCtx := storage.WithLocation(ctx, nodeLoc)
 
+		// Pin short-circuit — when a node is pinned with cached output,
+		// skip the executor entirely and serve the cached value to
+		// downstream. Saves $$ when iterating on a downstream prompt:
+		// upstream LLMs aren't re-called every Run. Engine still emits
+		// step_started + step_completed so the canvas reflects the
+		// "node ran (no-op)" state and the FailureDrawer pipeline sees
+		// a normal step row.
+		if node.Pinned && len(node.PinnedOutput) > 0 {
+			nodeOutputs[node.ID] = node.PinnedOutput
+			zeroDur := int64(0)
+			if updateErr := e.stepResults.UpdateStatus(ctx, stepResult.ID, domain.StatusCompleted, node.PinnedOutput, nil, nil, nil, &zeroDur); updateErr != nil {
+				slog.Error("failed to mark pinned step completed", "error", updateErr)
+			}
+			pinnedPayload, _ := json.Marshal(map[string]any{
+				"output":      json.RawMessage(node.PinnedOutput),
+				"output_file": "",
+				"pinned":      true,
+				"duration_ms": zeroDur,
+			})
+			e.eventBus.Publish(execution.ID, Event{
+				Type:        EventStepCompleted,
+				ExecutionID: execution.ID,
+				NodeID:      node.ID,
+				Data:        pinnedPayload,
+				Timestamp:   time.Now(),
+			})
+			continue
+		}
+
 		// Apply per-step timeout. Defaults to 120s; agent nodes may
 		// override via cfg.StepTimeoutSec (per Phase A reliability work).
 		// cancelTimeout is called explicitly at end-of-iteration rather
@@ -260,6 +289,28 @@ func (e *Engine) ExecuteWorkflow(ctx context.Context, execution domain.Execution
 				Error:       errStr,
 				Timestamp:   time.Now(),
 			})
+
+			// Per-node failure policy. Default (empty / "abort") matches
+			// the pre-Phase-B behaviour: stop the whole execution. "skip"
+			// keeps downstream running with no upstream value; "continue"
+			// pipes the failure JSON downstream so an error-handler agent
+			// can react. Both non-abort policies still record the failure
+			// row so the FailureDrawer can show what happened.
+			policy := node.OnFailure
+			if policy == "" {
+				policy = domain.OnFailureAbort
+			}
+			switch policy {
+			case domain.OnFailureSkip:
+				// Downstream sees no input from this node — the edge
+				// resolver will simply not find a match and the input
+				// map for the next consumer will lack the key.
+				continue
+			case domain.OnFailureContinue:
+				// Downstream sees the failure JSON as the upstream value.
+				nodeOutputs[node.ID] = failureBytes
+				continue
+			}
 
 			// Persist execution-level failure_json so the executions list
 			// and the FailureDrawer's diagnostic block can show class +

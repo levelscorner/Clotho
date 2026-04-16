@@ -45,6 +45,7 @@ func (h *ExecutionHandler) Routes(r chi.Router) {
 	r.Post("/api/pipelines/{id}/execute", h.Execute)
 	r.Get("/api/executions/{id}", h.Get)
 	r.Get("/api/executions", h.List)
+	r.Post("/api/executions/{id}/retry", h.Retry)
 }
 
 // executeRequest is the optional request body for POST /api/pipelines/{id}/execute.
@@ -192,11 +193,69 @@ func (h *ExecutionHandler) List(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Optional ?status=failed filter for the executions page. Filter in
+	// memory rather than threading a status parameter through every
+	// store implementation — list pages are bounded by limit/offset so
+	// the over-fetch is small. If list pages get longer, push the
+	// filter down to a new ListByTenantFiltered store method.
+	statusFilter := r.URL.Query().Get("status")
+
 	executions, err := h.executions.ListByTenant(r.Context(), tenantID, limit, offset)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list executions")
 		return
 	}
 
+	if statusFilter != "" {
+		filtered := executions[:0]
+		for _, e := range executions {
+			if string(e.Status) == statusFilter {
+				filtered = append(filtered, e)
+			}
+		}
+		executions = filtered
+	}
+
 	writeJSON(w, http.StatusOK, dto.ExecutionsFromDomain(executions))
+}
+
+// Retry handles POST /api/executions/{id}/retry. Creates a NEW execution
+// row pointing at the SAME pipeline_version_id as the original, then
+// enqueues it. Use this when the user wants a clean re-run after fixing
+// the underlying issue (rotated API key, restarted Ollama, etc.).
+//
+// This differs from RerunFromNode (which reuses cached upstream outputs
+// and re-executes from a specific failed node). Retry is "do the whole
+// thing again from scratch".
+func (h *ExecutionHandler) Retry(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid execution ID")
+		return
+	}
+
+	tenantID := middleware.TenantIDFromContext(r.Context())
+
+	original, err := h.executions.Get(r.Context(), id, tenantID)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "execution not found")
+		return
+	}
+
+	clone, err := h.executions.Create(r.Context(), domain.Execution{
+		PipelineVersionID: original.PipelineVersionID,
+		TenantID:          tenantID,
+		Status:            domain.StatusPending,
+	})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to create retry execution")
+		return
+	}
+
+	if err := h.queue.Submit(r.Context(), clone.ID, nil); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to enqueue retry")
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, dto.ExecutionFromDomain(clone))
 }

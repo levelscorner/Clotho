@@ -591,11 +591,17 @@ function AuthGate() {
 // build (`import.meta.env.DEV === true`) — the production bundle never sees
 // this page because the import is behind the DEV guard.
 const DevNodesLazy = React.lazy(() => import('./pages/DevNodes'));
+const ExecutionsPageLazy = React.lazy(() => import('./pages/ExecutionsPage'));
 
 function isDevNodesRoute(): boolean {
   if (!import.meta.env.DEV) return false;
   if (typeof window === 'undefined') return false;
   return window.location.pathname === '/dev/nodes';
+}
+
+function isExecutionsRoute(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.location.pathname === '/executions';
 }
 
 export default function App() {
@@ -605,6 +611,19 @@ export default function App() {
       <ErrorBoundary>
         <React.Suspense fallback={null}>
           <DevNodesLazy />
+        </React.Suspense>
+      </ErrorBoundary>
+    );
+  }
+
+  // Read-only executions list — bypasses pipeline-store bootstrap so it
+  // loads fast and works even when the canvas would otherwise hang on
+  // a missing project.
+  if (isExecutionsRoute()) {
+    return (
+      <ErrorBoundary>
+        <React.Suspense fallback={null}>
+          <ExecutionsPageLazy />
         </React.Suspense>
       </ErrorBoundary>
     );

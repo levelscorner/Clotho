@@ -15,6 +15,7 @@ import { describeNode } from '../../lib/nodeDescriptions';
 import { OllamaModelDropdown } from './OllamaModelDropdown';
 import { VariablesSection } from './sections/VariablesSection';
 import { SamplingSection } from './sections/SamplingSection';
+import { ReliabilitySection } from './sections/ReliabilitySection';
 import { TestStepButton } from './TestStepButton';
 import { fieldGroup, inputStyle, labelStyle, textareaStyle } from './sections/sectionStyles';
 
@@ -318,6 +319,9 @@ export function AgentInspector({ nodeId, label, config, stepResult }: AgentInspe
 
       {/* Sampling — temperature + top-p/top-k/seed/penalties, gated */}
       <SamplingSection config={config} onChange={update} />
+
+      {/* Reliability — pin output, on-failure policy. Phase B controls. */}
+      <ReliabilitySection nodeId={nodeId} />
 
       {/* Task routing — kept in its own collapsed group since users
           rarely touch task_type/output_type after initial setup */}

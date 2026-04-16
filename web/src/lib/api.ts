@@ -198,6 +198,43 @@ const credentials = {
 };
 
 // ---------------------------------------------------------------------------
+// Executions — list with optional status filter + retry
+// ---------------------------------------------------------------------------
+
+export interface ExecutionRow {
+  id: string;
+  pipeline_version_id: string;
+  status: string;
+  total_cost?: number;
+  total_tokens?: number;
+  error?: string;
+  failure?: unknown;
+  trace_id?: string;
+  started_at?: string;
+  completed_at?: string;
+  created_at: string;
+}
+
+const executions = {
+  /**
+   * GET /api/executions[?status=failed&limit=N&offset=N]. Returns the
+   * raw row shape (no DTO transform) so the executions page can render
+   * status badges and failure summaries directly.
+   */
+  list: (params?: { status?: string; limit?: number; offset?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.status) qs.set('status', params.status);
+    if (params?.limit != null) qs.set('limit', String(params.limit));
+    if (params?.offset != null) qs.set('offset', String(params.offset));
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+    return request<ExecutionRow[]>('GET', `/executions${suffix}`);
+  },
+  /** POST /api/executions/{id}/retry — clones the original + enqueues. */
+  retry: (id: string) =>
+    request<{ id: string }>('POST', `/executions/${id}/retry`),
+};
+
+// ---------------------------------------------------------------------------
 // Node-level "test step in isolation" — POST /api/nodes/test
 // ---------------------------------------------------------------------------
 
@@ -351,6 +388,6 @@ export async function revealInFinder(ref: string): Promise<void> {
   }
 }
 
-export const api = { get, post, put, del, credentials, exportPipeline, importPipeline, templates: templateApi, fetchOllamaModels };
+export const api = { get, post, put, del, credentials, executions, exportPipeline, importPipeline, templates: templateApi, fetchOllamaModels };
 
 export { ApiError };

@@ -132,6 +132,12 @@ export interface MediaNodeConfig {
 // Graph primitives
 // ---------------------------------------------------------------------------
 
+// OnFailurePolicy mirrors internal/domain/node.go::OnFailurePolicy.
+//   abort    — stop the execution (default)
+//   skip     — emit step_failed but keep downstream running with null
+//   continue — same as skip but downstream gets the StepFailure JSON
+export type OnFailurePolicy = 'abort' | 'skip' | 'continue';
+
 export interface NodeInstance {
   id: string;
   type: NodeType;
@@ -139,6 +145,12 @@ export interface NodeInstance {
   position: Position;
   ports: Port[];
   config: AgentNodeConfig | ToolNodeConfig | MediaNodeConfig;
+  /** Freeze output across re-runs; engine skips the executor when true. */
+  pinned?: boolean;
+  /** Cached output served while pinned. Wire shape matches StepResult.output. */
+  pinned_output?: unknown;
+  /** Per-node failure policy. Defaults to 'abort' when omitted. */
+  on_failure?: OnFailurePolicy;
 }
 
 export interface Edge {
@@ -283,7 +295,19 @@ export interface Credential {
 // We use `type` with an explicit index signature so TS is happy.
 // ---------------------------------------------------------------------------
 
-export type AgentNodeData = {
+// Reliability fields shared across every node-data variant. Mirror the
+// universal NodeInstance fields (pinned + on_failure live on the node,
+// not the per-type config).
+interface NodeReliabilityFields {
+  /** Freeze output across re-runs; engine skips the executor when true. */
+  pinned?: boolean;
+  /** Cached output to serve while pinned. Wire shape: StepResult.output. */
+  pinnedOutput?: unknown;
+  /** Per-node failure policy. Defaults to 'abort' when omitted. */
+  onFailure?: OnFailurePolicy;
+}
+
+export type AgentNodeData = NodeReliabilityFields & {
   [key: string]: unknown;
   nodeType: 'agent';
   label: string;
@@ -291,7 +315,7 @@ export type AgentNodeData = {
   config: AgentNodeConfig;
 };
 
-export type ToolNodeData = {
+export type ToolNodeData = NodeReliabilityFields & {
   [key: string]: unknown;
   nodeType: 'tool';
   label: string;
@@ -299,7 +323,7 @@ export type ToolNodeData = {
   config: ToolNodeConfig;
 };
 
-export type MediaNodeData = {
+export type MediaNodeData = NodeReliabilityFields & {
   [key: string]: unknown;
   nodeType: 'media';
   label: string;

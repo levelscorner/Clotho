@@ -6,17 +6,22 @@ import type { AgentNodeConfig } from '../../../lib/types';
 // Mocks — must be set up before importing AgentInspector
 // ---------------------------------------------------------------------------
 
-// Mock the pipeline store — AgentInspector reads two selectors from it.
+// Mock the pipeline store — AgentInspector reads several selectors from
+// it directly + via the embedded TestStepButton. Provide an idle state
+// shape so every selector returns a sensible default.
 vi.mock('../../../stores/pipelineStore', () => ({
   usePipelineStore: (selector: (s: unknown) => unknown) =>
     selector({
+      nodes: [],
+      edges: [],
       updateNodeConfig: vi.fn(),
       updateNodeLabel: vi.fn(),
+      setSelectedNode: vi.fn(),
     }),
 }));
 
 // Mock the api module — AgentInspector calls api.get and api.credentials.list
-// in a useEffect. Return empty datasets so it resolves synchronously-enough.
+// in a useEffect; TestStepButton imports testNode at module load.
 vi.mock('../../../lib/api', () => ({
   api: {
     get: vi.fn().mockResolvedValue([]),
@@ -24,6 +29,7 @@ vi.mock('../../../lib/api', () => ({
       list: vi.fn().mockResolvedValue([]),
     },
   },
+  testNode: vi.fn().mockResolvedValue({ duration_ms: 0 }),
 }));
 
 // OllamaModelDropdown is not exercised here (provider defaults to non-ollama).

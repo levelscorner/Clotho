@@ -96,6 +96,11 @@ export interface AgentNodeConfig {
   // retryable failures.
   step_timeout_sec?: number;
   max_retries?: number;
+
+  // Free-form annotation surfaced in the inspector. Engine never reads
+  // it; it's a breadcrumb for the creator (e.g. "this one breaks above
+  // 4k tokens"). Stored as part of the node config blob.
+  notes?: string;
 }
 
 export interface ToolNodeConfig {

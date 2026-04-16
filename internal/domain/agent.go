@@ -69,6 +69,13 @@ type AgentNodeConfig struct {
 	// or empty (generic). Populated when an agent node is created from a
 	// built-in preset; omitted otherwise.
 	PresetCategory string `json:"preset_category,omitempty"`
+
+	// Notes is a free-form annotation surfaced in the inspector. The engine
+	// never reads it — it exists so creators can leave breadcrumbs like
+	// "this one breaks above 4k tokens" next to the node itself. Capped
+	// implicitly by Postgres TEXT (~1GB) and explicitly by inspector
+	// markup; no backend validation beyond JSON-shape.
+	Notes string `json:"notes,omitempty"`
 }
 
 // DefaultAgentPorts returns the standard input/output ports for an agent node.

@@ -145,6 +145,7 @@ func main() {
 		Users:            userStore,
 		RefreshTokens:    refreshTokenStore,
 		LLMRegistry:      llmRegistry,
+		Executors:        registry,
 		Queue:            q,
 		EventBus:         eventBus,
 		FileStore:         fileStore,

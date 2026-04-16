@@ -15,6 +15,7 @@ import { describeNode } from '../../lib/nodeDescriptions';
 import { OllamaModelDropdown } from './OllamaModelDropdown';
 import { VariablesSection } from './sections/VariablesSection';
 import { SamplingSection } from './sections/SamplingSection';
+import { TestStepButton } from './TestStepButton';
 import { fieldGroup, inputStyle, labelStyle, textareaStyle } from './sections/sectionStyles';
 
 // ---------------------------------------------------------------------------
@@ -195,6 +196,26 @@ export function AgentInspector({ nodeId, label, config, stepResult }: AgentInspe
       )}
 
       <AboutNodeSection description={describeNode({ nodeType: 'agent' })} />
+
+      {/* Test step in isolation — fast feedback loop without saving. */}
+      <TestStepButton nodeId={nodeId} />
+
+      {/* Notes — free-form annotation. Lives at the top so creators can
+          jot down "breaks above 4k tokens" right next to the About text. */}
+      <InspectorGroup title="Notes">
+        <textarea
+          aria-label="Node notes"
+          placeholder="Free-form notes for your future self. Engine never reads this."
+          value={config.notes ?? ''}
+          onChange={(e) => update({ notes: e.target.value })}
+          style={{
+            ...textareaStyle,
+            minHeight: 64,
+            fontSize: 12,
+            lineHeight: 1.45,
+          }}
+        />
+      </InspectorGroup>
 
       {/* Basics — label, prompt, provider, model, system prompt, persona */}
       <InspectorGroup title="Basics" defaultOpen>

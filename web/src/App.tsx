@@ -18,6 +18,11 @@ import { AuthBanner } from './components/AuthBanner';
 import { UnauthChip } from './components/UnauthChip';
 import { SettingsPanel } from './components/settings/SettingsPanel';
 import { TemplateGallery } from './components/templates/TemplateGallery';
+import {
+  ValidationModal,
+  parseValidationErrors,
+  type ValidationErrorPayload,
+} from './components/canvas/ValidationModal';
 import { useProjectStore } from './stores/projectStore';
 import { usePipelineStore } from './stores/pipelineStore';
 import { useHistoryStore } from './stores/historyStore';
@@ -166,8 +171,24 @@ function AppContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const [validationErrors, setValidationErrors] = useState<
+    ValidationErrorPayload[] | null
+  >(null);
+
   const handleSave = useCallback(async () => {
-    await savePipeline();
+    try {
+      await savePipeline();
+    } catch (err) {
+      const errors = parseValidationErrors(err);
+      if (errors) {
+        setValidationErrors(errors);
+        return;
+      }
+      // Non-validation failure — re-throw so the global error boundary or
+      // future toast surface picks it up. Keeping this rethrow means a
+      // network outage isn't silently swallowed by the catch.
+      throw err;
+    }
   }, [savePipeline]);
 
   const handleExport = useCallback(async () => {
@@ -525,6 +546,15 @@ function AppContent() {
 
       {/* Template gallery modal */}
       {templatesOpen && <TemplateGallery onClose={closeTemplates} />}
+
+      {/* Save-time validation modal — surfaces backend ValidateGraph
+          errors instead of letting save silently fail. */}
+      {validationErrors && (
+        <ValidationModal
+          errors={validationErrors}
+          onClose={() => setValidationErrors(null)}
+        />
+      )}
     </div>
   );
 }

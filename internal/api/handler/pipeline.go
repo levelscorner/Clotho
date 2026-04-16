@@ -11,6 +11,7 @@ import (
 	"github.com/user/clotho/internal/api/dto"
 	"github.com/user/clotho/internal/api/middleware"
 	"github.com/user/clotho/internal/domain"
+	"github.com/user/clotho/internal/engine"
 	"github.com/user/clotho/internal/store"
 )
 
@@ -210,6 +211,23 @@ func (h *PipelineHandler) SaveVersion(w http.ResponseWriter, r *http.Request) {
 
 	if req.Graph.Nodes == nil {
 		writeError(w, http.StatusBadRequest, "graph with at least a nodes array is required")
+		return
+	}
+
+	// Save-time validation. The engine validates again at execute-time
+	// (per ARCHITECTURE.md), but catching errors at save means the user
+	// finds out immediately rather than an hour later when they hit Run.
+	// The structured error list flows through validation_errors so the
+	// frontend renders a "Click to fix" modal pointing at each bad
+	// edge/port. Empty graphs (Nodes:[], Edges:[]) pass — users routinely
+	// save mid-build, and an empty graph has no validation issues.
+	if errs := engine.ValidateGraph(req.Graph); len(errs) > 0 {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"error":             "graph validation failed",
+			"validation_errors": errs,
+		})
 		return
 	}
 

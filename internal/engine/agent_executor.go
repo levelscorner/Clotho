@@ -366,6 +366,15 @@ func concatenateInputs(inputs map[string]json.RawMessage) string {
 	return strings.Join(parts, "\n")
 }
 
+// CreateProviderFromCredential creates an LLM provider on-the-fly from a
+// stored credential. Exported because the credential-test handler in
+// internal/api/handler/credential.go needs the same provider-construction
+// path as the executor — keeping a single source of truth means a new
+// provider is added in exactly one place.
+func CreateProviderFromCredential(providerName, apiKey string) (llm.Provider, error) {
+	return createProviderFromCredential(providerName, apiKey)
+}
+
 // createProviderFromCredential creates an LLM provider on-the-fly from a stored credential.
 func createProviderFromCredential(providerName, apiKey string) (llm.Provider, error) {
 	switch providerName {

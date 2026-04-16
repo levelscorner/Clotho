@@ -29,6 +29,7 @@ type Deps struct {
 	Users            store.UserStore
 	RefreshTokens    store.RefreshTokenStore
 	LLMRegistry      *llm.ProviderRegistry
+	Executors        *engine.ExecutorRegistry // for the test-step endpoint (B4)
 	Queue            *queue.Queue
 	EventBus         *engine.EventBus
 	FileStore         storage.Store
@@ -110,6 +111,9 @@ func NewRouter(deps Deps) chi.Router {
 		handler.NewPresetHandler(deps.Presets).Routes(r)
 		handler.NewCredentialHandler(deps.Credentials).Routes(r)
 		handler.NewProviderHandler(deps.LLMRegistry).Routes(r)
+		if deps.Executors != nil {
+			handler.NewNodeTestHandler(deps.Executors).Routes(r)
+		}
 		handler.NewLLMHandler(deps.OllamaURL).Routes(r)
 		handler.NewTemplateHandler().Routes(r)
 		handler.NewStreamHandler(deps.Executions, deps.EventBus, deps.AllowedOrigins).Routes(r)

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Credential } from '../../lib/types';
-import { api } from '../../lib/api';
+import { api, type CredentialTestResult } from '../../lib/api';
 import { useAuthStore } from '../../stores/authStore';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 
@@ -233,6 +233,34 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
     [fetchCredentials],
   );
 
+  // Per-credential test state. Keyed by credential ID so test buttons on
+  // separate rows don't share status. Reset whenever the user re-tests.
+  const [testing, setTesting] = useState<Record<string, boolean>>({});
+  const [testResults, setTestResults] = useState<
+    Record<string, CredentialTestResult>
+  >({});
+
+  const handleTest = useCallback(async (id: string) => {
+    setTesting((prev) => ({ ...prev, [id]: true }));
+    try {
+      const result = await api.credentials.test(id);
+      setTestResults((prev) => ({ ...prev, [id]: result }));
+    } catch (err: unknown) {
+      // Network-level failure (server down, 500, etc.) — synthesize a
+      // not-ok result so the row badge still renders.
+      setTestResults((prev) => ({
+        ...prev,
+        [id]: {
+          ok: false,
+          latency_ms: 0,
+          message: err instanceof Error ? err.message : 'Test request failed',
+        },
+      }));
+    } finally {
+      setTesting((prev) => ({ ...prev, [id]: false }));
+    }
+  }, []);
+
   return (
     <div
       ref={dialogRef}
@@ -316,20 +344,66 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
             </div>
           </div>
         ) : (
-          credentials.map((cred) => (
-            <div key={cred.id} style={credCardStyle}>
-              <div>
-                <div style={credProviderStyle}>{cred.provider}</div>
-                <div style={credLabelStyle}>{cred.label}</div>
+          credentials.map((cred) => {
+            const result = testResults[cred.id];
+            const inFlight = testing[cred.id];
+            const badgeText = inFlight
+              ? 'Testing…'
+              : result
+                ? result.ok
+                  ? `OK · ${result.latency_ms}ms`
+                  : `Fail · ${result.message ?? 'unknown'}`
+                : null;
+            const badgeColor = result
+              ? result.ok
+                ? '#22c55e'
+                : '#f87171'
+              : '#8888a0';
+            return (
+              <div key={cred.id} style={credCardStyle}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={credProviderStyle}>{cred.provider}</div>
+                  <div style={credLabelStyle}>{cred.label}</div>
+                  {badgeText && (
+                    <div
+                      style={{
+                        marginTop: 4,
+                        fontSize: 10,
+                        color: badgeColor,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                      title={badgeText}
+                    >
+                      {badgeText}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    style={{
+                      ...deleteButtonStyle,
+                      borderColor: '#2e2e38',
+                      color: '#8888a0',
+                      opacity: inFlight ? 0.6 : 1,
+                    }}
+                    disabled={inFlight}
+                    onClick={() => void handleTest(cred.id)}
+                    title="Send a 1-token ping to verify the key is valid"
+                  >
+                    {inFlight ? '…' : 'Test'}
+                  </button>
+                  <button
+                    style={deleteButtonStyle}
+                    onClick={() => void handleDelete(cred.id)}
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
-              <button
-                style={deleteButtonStyle}
-                onClick={() => void handleDelete(cred.id)}
-              >
-                Delete
-              </button>
-            </div>
-          ))
+            );
+          })
         )}
 
         {/* Add form */}

@@ -175,12 +175,47 @@ async function del(path: string): Promise<void> {
 // Credential API
 // ---------------------------------------------------------------------------
 
+// Response shape for POST /credentials/{id}/test. Mirrors
+// internal/api/dto/credential.go::CredentialTestResponse. The `failure`
+// field is intentionally `unknown` here — coerceStepFailure validates it
+// at the use site rather than letting wire data pass through unchecked.
+export interface CredentialTestResult {
+  ok: boolean;
+  latency_ms: number;
+  provider?: string;
+  model?: string;
+  failure?: unknown;
+  message?: string;
+}
+
 const credentials = {
   list: () => request<Credential[]>('GET', '/credentials'),
   create: (data: { provider: string; label: string; api_key: string }) =>
     request<Credential>('POST', '/credentials', data),
   delete: (id: string) => request<void>('DELETE', `/credentials/${id}`),
+  test: (id: string) =>
+    request<CredentialTestResult>('POST', `/credentials/${id}/test`),
 };
+
+// ---------------------------------------------------------------------------
+// Node-level "test step in isolation" — POST /api/nodes/test
+// ---------------------------------------------------------------------------
+
+export interface NodeTestResult {
+  output?: unknown;
+  tokens_used?: number;
+  cost_usd?: number;
+  duration_ms: number;
+  failure?: unknown;
+  error?: string;
+}
+
+export async function testNode(payload: {
+  node: unknown;
+  inputs?: Record<string, unknown>;
+}): Promise<NodeTestResult> {
+  return request<NodeTestResult>('POST', '/nodes/test', payload);
+}
 
 // ---------------------------------------------------------------------------
 // Pipeline Export / Import

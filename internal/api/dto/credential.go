@@ -47,6 +47,24 @@ func CredentialsFromDomain(creds []domain.Credential) []CredentialResponse {
 	return out
 }
 
+// CredentialTestResponse is what POST /api/credentials/{id}/test returns.
+//
+// Always 200 OK at the HTTP layer — clients read `ok` to decide success.
+// We return 200 even on auth failure so the frontend can render the
+// failure block inline rather than treating it as a network error.
+type CredentialTestResponse struct {
+	OK        bool   `json:"ok"`
+	LatencyMs int64  `json:"latency_ms"`
+	Model     string `json:"model,omitempty"`
+	Provider  string `json:"provider,omitempty"`
+	// Failure is the structured StepFailure (mirrors domain.StepFailure)
+	// when OK == false. Populated even for non-credential-related
+	// failures (network, server outage) so the UI can guide the user.
+	Failure any `json:"failure,omitempty"`
+	// Message is a 1-line summary used as the badge label.
+	Message string `json:"message,omitempty"`
+}
+
 // maskAPIKey masks all but the last 4 characters of an API key.
 func maskAPIKey(key string) string {
 	if len(key) <= 4 {

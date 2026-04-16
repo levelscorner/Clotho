@@ -97,6 +97,21 @@ func (s *FakeExecutionStore) UpdateStatus(_ context.Context, id uuid.UUID, statu
 	return nil
 }
 
+func (s *FakeExecutionStore) SetFailure(_ context.Context, id uuid.UUID, failureJSON json.RawMessage, errMsg *string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	e, ok := s.executions[id]
+	if !ok {
+		return fmt.Errorf("not found")
+	}
+	e.FailureJSON = failureJSON
+	if errMsg != nil {
+		e.Error = errMsg
+	}
+	s.executions[id] = e
+	return nil
+}
+
 func (s *FakeExecutionStore) UpdateCost(_ context.Context, id uuid.UUID, totalCost float64, totalTokens int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -227,6 +242,19 @@ func (s *FakeStepResultStore) UpdateStatus(
 	r.DurationMs = durationMs
 	now := time.Now()
 	r.CompletedAt = &now
+	s.results[idx] = r
+	return nil
+}
+
+func (s *FakeStepResultStore) SetFailure(_ context.Context, id uuid.UUID, failureJSON json.RawMessage) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	idx, ok := s.byID[id]
+	if !ok {
+		return fmt.Errorf("not found")
+	}
+	r := s.results[idx]
+	r.FailureJSON = failureJSON
 	s.results[idx] = r
 	return nil
 }

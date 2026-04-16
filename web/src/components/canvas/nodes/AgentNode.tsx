@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import type { NodeProps, Node } from '@xyflow/react';
 import type { AgentNodeData, AgentNodeConfig } from '../../../lib/types';
 import { BaseNode } from './BaseNode';
@@ -7,6 +7,7 @@ import { NodeFolderButton } from './NodeFolderButton';
 import { usePipelineStore } from '../../../stores/pipelineStore';
 import { useExecutionStore } from '../../../stores/executionStore';
 import { mapError } from '../../../lib/errorRemediation';
+import { FailureDrawer, failureTooltipText } from '../../execution/FailureDrawer';
 
 // ---------------------------------------------------------------------------
 // Component
@@ -20,6 +21,7 @@ function AgentNodeInner({ id, data, selected }: NodeProps<AgentNodeType>) {
   const stepResult = useExecutionStore((s) => s.stepResults.get(id));
   const executionId = useExecutionStore((s) => s.executionId);
   const retryNode = useExecutionStore((s) => s.retryNode);
+  const [showFailureDrawer, setShowFailureDrawer] = useState(false);
 
   const handleClick = useCallback(() => {
     setSelectedNode(id);
@@ -105,8 +107,26 @@ function AgentNodeInner({ id, data, selected }: NodeProps<AgentNodeType>) {
             </div>
           ) : status === 'failed' ? (
             <>
-              <div className="clotho-node__error">
-                {mapError(error).summary}
+              <div
+                className="clotho-node__error"
+                title={
+                  stepResult?.failure
+                    ? failureTooltipText(stepResult.failure)
+                    : undefined
+                }
+                onClick={(e) => {
+                  // Open the FailureDrawer when the user clicks the
+                  // error region — only meaningful for structured
+                  // failures (legacy string errors fall through to the
+                  // existing Edit Prompt CTA).
+                  if (stepResult?.failure) {
+                    e.stopPropagation();
+                    setShowFailureDrawer(true);
+                  }
+                }}
+                style={{ cursor: stepResult?.failure ? 'pointer' : 'default' }}
+              >
+                {stepResult?.failure?.message ?? mapError(error).summary}
               </div>
               <div className="clotho-node__error-actions">
                 <button
@@ -122,6 +142,13 @@ function AgentNodeInner({ id, data, selected }: NodeProps<AgentNodeType>) {
                   Edit Prompt
                 </button>
               </div>
+              {showFailureDrawer && stepResult?.failure && (
+                <FailureDrawer
+                  nodeId={id}
+                  failure={stepResult.failure}
+                  onClose={() => setShowFailureDrawer(false)}
+                />
+              )}
             </>
           ) : (
             // Inline prompt editor — the node IS the prompt while idle.

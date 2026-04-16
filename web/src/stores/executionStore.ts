@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 import type { Edge as RFEdge } from '@xyflow/react';
-import type { ExecutionStatus, StepResult } from '../lib/types';
+import type { ExecutionStatus, StepResult, StepFailure } from '../lib/types';
 import { api } from '../lib/api';
 import { parseEnvelope } from './sseParse';
+import { coerceStepFailure } from '../lib/failureSchema';
 
 // ---------------------------------------------------------------------------
 // Selector helper: downstream-of-failed node ids
@@ -203,13 +204,19 @@ export const useExecutionStore = create<ExecutionState>((set, get) => ({
     });
 
     es.addEventListener('step_failed', (e: MessageEvent) => {
-      const env = parseEnvelope<{ error?: string }>(e.data);
+      const env = parseEnvelope<{ error?: string; failure?: unknown }>(e.data);
       if (!env || !env.node_id) return;
       const payloadErr = typeof env.data?.error === 'string' ? env.data.error : undefined;
+      // The structured StepFailure rides in event.data.failure. Validate
+      // it through coerceStepFailure so the UI never crashes on a
+      // malformed payload — falls back to undefined and the legacy
+      // `error` string still renders.
+      const failure: StepFailure | undefined = coerceStepFailure(env.data?.failure);
       get().updateStep({
         node_id: env.node_id,
         status: 'failed',
         error: env.error ?? payloadErr,
+        failure,
         completed_at: env.timestamp,
       });
     });

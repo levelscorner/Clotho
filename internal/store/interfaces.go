@@ -61,6 +61,11 @@ type ExecutionStore interface {
 	GetByID(ctx context.Context, id uuid.UUID) (domain.Execution, error)
 	ListByTenant(ctx context.Context, tenantID uuid.UUID, limit, offset int) ([]domain.Execution, error)
 	UpdateStatus(ctx context.Context, id uuid.UUID, status domain.ExecutionStatus, errMsg *string) error
+	// SetFailure persists the structured StepFailure (as JSONB) plus the
+	// 1-line summary for back-compat. Idempotent — overwrites prior value.
+	// failureJSON nil clears the column. Used by the engine when the
+	// "tell-me-why-it-broke" UX needs more than a string.
+	SetFailure(ctx context.Context, id uuid.UUID, failureJSON json.RawMessage, errMsg *string) error
 	UpdateCost(ctx context.Context, id uuid.UUID, totalCost float64, totalTokens int) error
 	Complete(ctx context.Context, id uuid.UUID, totalCost float64, totalTokens int) error
 	Cancel(ctx context.Context, id, tenantID uuid.UUID) error
@@ -71,6 +76,12 @@ type StepResultStore interface {
 	Create(ctx context.Context, sr domain.StepResult) (domain.StepResult, error)
 	ListByExecution(ctx context.Context, executionID uuid.UUID) ([]domain.StepResult, error)
 	UpdateStatus(ctx context.Context, id uuid.UUID, status domain.ExecutionStatus, outputData json.RawMessage, errMsg *string, tokensUsed *int, costUSD *float64, durationMs *int64) error
+	// SetFailure persists the structured StepFailure (as JSONB) for a step
+	// row. Called alongside UpdateStatus(StatusFailed, ...) — they aren't
+	// merged into one method to keep the back-compat path of UpdateStatus
+	// stable; if the structured failure misses for any reason the row's
+	// `error` column is still populated.
+	SetFailure(ctx context.Context, id uuid.UUID, failureJSON json.RawMessage) error
 }
 
 // PresetStore manages agent presets (built-in + tenant-specific).

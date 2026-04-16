@@ -160,6 +160,22 @@ func (s *ExecutionStore) Complete(ctx context.Context, id uuid.UUID, totalCost f
 	return nil
 }
 
+// SetFailure persists the structured StepFailure (as JSONB) on the
+// execution row plus the 1-line summary for back-compat. errMsg may be
+// nil to leave the existing summary alone.
+func (s *ExecutionStore) SetFailure(ctx context.Context, id uuid.UUID, failureJSON json.RawMessage, errMsg *string) error {
+	tag, err := s.pool.Exec(ctx,
+		`UPDATE executions SET failure_json = $1, error = COALESCE($2, error) WHERE id = $3`,
+		failureJSON, errMsg, id)
+	if err != nil {
+		return fmt.Errorf("execution set failure: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("execution set failure: not found")
+	}
+	return nil
+}
+
 func (s *ExecutionStore) Cancel(ctx context.Context, id, tenantID uuid.UUID) error {
 	tag, err := s.pool.Exec(ctx,
 		`UPDATE executions SET status = $1, completed_at = NOW()
@@ -276,6 +292,21 @@ func (s *StepResultStore) UpdateStatus(
 	}
 	if tag.RowsAffected() == 0 {
 		return fmt.Errorf("step result update status: not found")
+	}
+	return nil
+}
+
+// SetFailure persists the structured StepFailure (as JSONB) on a step
+// row. Called after UpdateStatus(StatusFailed, ...). Idempotent.
+func (s *StepResultStore) SetFailure(ctx context.Context, id uuid.UUID, failureJSON json.RawMessage) error {
+	tag, err := s.pool.Exec(ctx,
+		`UPDATE step_results SET failure_json = $1 WHERE id = $2`,
+		failureJSON, id)
+	if err != nil {
+		return fmt.Errorf("step result set failure: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("step result set failure: not found")
 	}
 	return nil
 }

@@ -90,6 +90,12 @@ export interface AgentNodeConfig {
   seed?: number;
   frequency_penalty?: number;
   presence_penalty?: number;
+
+  // Reliability knobs (Phase A). step_timeout_sec overrides the engine's
+  // 120s default; max_retries overrides the 3-attempt default for
+  // retryable failures.
+  step_timeout_sec?: number;
+  max_retries?: number;
 }
 
 export interface ToolNodeConfig {
@@ -183,10 +189,54 @@ export interface PipelineVersion {
   created_at: string;
 }
 
+// FailureClass mirrors internal/domain/failure.go. Adding a new value
+// here also requires updating the badge color map in
+// web/src/components/execution/FailureDrawer.tsx.
+export type FailureClass =
+  | 'network'
+  | 'rate_limit'
+  | 'timeout'
+  | 'auth'
+  | 'provider_5xx'
+  | 'provider_4xx'
+  | 'validation'
+  | 'output_shape'
+  | 'output_quality'
+  | 'cost_cap'
+  | 'circuit_open'
+  | 'internal';
+
+export type FailureStage =
+  | 'input_resolve'
+  | 'provider_call'
+  | 'stream_parse'
+  | 'output_validate'
+  | 'persist';
+
+export interface StepFailure {
+  class: FailureClass;
+  stage: FailureStage;
+  provider?: string;
+  model?: string;
+  retryable: boolean;
+  message: string;
+  cause?: string;
+  hint?: string;
+  attempts: number;
+  at: string;
+}
+
 export interface StepResult {
   node_id: string;
   status: ExecutionStatus;
   output?: string;
+  /**
+   * Structured failure payload populated when status === 'failed'.
+   * Mirrors internal/domain/failure.go::StepFailure. Use this in the
+   * FailureDrawer + node tooltips. The legacy `error` field still
+   * carries the 1-line summary for back-compat.
+   */
+  failure?: StepFailure;
   /**
    * Optional `clotho://file/…` URL pointing to an on-disk artifact for
    * this node — set when an agent wrote its text to a .txt file or a

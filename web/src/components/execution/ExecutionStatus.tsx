@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { usePipelineStore } from '../../stores/pipelineStore';
 import { useExecutionStore } from '../../stores/executionStore';
 import type { ExecutionStatus as ExecStatus } from '../../lib/types';
+import { FailureDrawer, firstFailureFromMap } from './FailureDrawer';
 
 // ---------------------------------------------------------------------------
 // Status badge colour
@@ -24,12 +26,17 @@ export function ExecutionStatus() {
   const totalCost = useExecutionStore((s) => s.totalCost);
   const stepResults = useExecutionStore((s) => s.stepResults);
   const totalNodes = usePipelineStore((s) => s.nodes.length);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   if (!status) return null;
 
   const completedCount = Array.from(stepResults.values()).filter(
     (r) => r.status === 'completed' || r.status === 'failed',
   ).length;
+  const failureCount = Array.from(stepResults.values()).filter(
+    (r) => r.status === 'failed',
+  ).length;
+  const surfaced = firstFailureFromMap(stepResults);
 
   return (
     <div
@@ -62,6 +69,35 @@ export function ExecutionStatus() {
       )}
 
       {totalCost > 0 && <span>Cost: ${totalCost.toFixed(4)}</span>}
+
+      {failureCount > 0 && surfaced && (
+        <button
+          type="button"
+          onClick={() => setDrawerOpen(true)}
+          aria-label={`Open failure details (${failureCount})`}
+          style={{
+            marginLeft: 'auto',
+            background: 'transparent',
+            border: '1px solid #ef4444',
+            color: '#ef4444',
+            borderRadius: 4,
+            padding: '2px 8px',
+            fontSize: 11,
+            fontWeight: 600,
+            cursor: 'pointer',
+          }}
+        >
+          {failureCount} failure{failureCount > 1 ? 's' : ''} — why?
+        </button>
+      )}
+
+      {drawerOpen && surfaced && (
+        <FailureDrawer
+          nodeId={surfaced.nodeId}
+          failure={surfaced.failure}
+          onClose={() => setDrawerOpen(false)}
+        />
+      )}
     </div>
   );
 }

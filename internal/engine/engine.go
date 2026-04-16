@@ -178,9 +178,16 @@ func (e *Engine) ExecuteWorkflow(ctx context.Context, execution domain.Execution
 		nodeLoc.NodeID = node.ID
 		nodeCtx := storage.WithLocation(ctx, nodeLoc)
 
+		// Apply per-step timeout. Defaults to 120s; agent nodes may
+		// override via cfg.StepTimeoutSec (per Phase A reliability work).
+		// cancelTimeout is called explicitly at end-of-iteration rather
+		// than via defer so the loop doesn't accumulate timers across
+		// nodes of a long pipeline.
+		timeoutCtx, cancelTimeout := context.WithTimeout(nodeCtx, stepTimeoutFor(node))
+
 		// Execute with streaming
 		start := time.Now()
-		chunks, resultCh, errCh := executor.ExecuteStream(nodeCtx, node, inputs)
+		chunks, resultCh, errCh := executor.ExecuteStream(timeoutCtx, node, inputs)
 
 		// Forward streaming chunks as events. Payload must be a JSON object
 		// with a named `chunk` field so the frontend can read it directly
@@ -214,17 +221,53 @@ func (e *Engine) ExecuteWorkflow(ctx context.Context, execution domain.Execution
 		durationMs := time.Since(start).Milliseconds()
 
 		if execErr != nil {
+			cancelTimeout()
 			errStr := redact.Secrets(execErr.Error())
+
+			// Recover the structured StepFailure (when the executor
+			// returned *FailureError) or classify the raw error so the
+			// FailureDrawer always has a class + hint to render. The
+			// classifier doesn't know which provider/model the executor
+			// was using; for non-FailureError paths we accept the empty
+			// strings — engine-internal failures (marshal, store) are
+			// rare and a generic "internal" class is honest.
+			failure := ClassifyExecutionError(execErr, "", "")
+			failureBytes, _ := json.Marshal(failure)
+
 			if updateErr := e.stepResults.UpdateStatus(ctx, stepResult.ID, domain.StatusFailed, nil, &errStr, nil, nil, &durationMs); updateErr != nil {
 				slog.Error("failed to update step status", "error", updateErr)
+			}
+			if persistErr := e.stepResults.SetFailure(ctx, stepResult.ID, failureBytes); persistErr != nil {
+				// Non-fatal: error column still has the 1-line summary.
+				slog.Warn("failed to persist step failure_json", "error", persistErr)
+			}
+
+			// Build the SSE payload. Frontend reads event.data.failure
+			// for the structured object and event.data.error for the
+			// 1-line summary; both stay populated for back-compat.
+			failedPayload, marshalErr := json.Marshal(map[string]any{
+				"failure": json.RawMessage(failureBytes),
+				"error":   errStr,
+			})
+			if marshalErr != nil {
+				failedPayload = nil
 			}
 			e.eventBus.Publish(execution.ID, Event{
 				Type:        EventStepFailed,
 				ExecutionID: execution.ID,
 				NodeID:      node.ID,
+				Data:        failedPayload,
 				Error:       errStr,
 				Timestamp:   time.Now(),
 			})
+
+			// Persist execution-level failure_json so the executions list
+			// and the FailureDrawer's diagnostic block can show class +
+			// hint without re-fetching every step row.
+			if persistErr := e.executions.SetFailure(ctx, execution.ID, failureBytes, &errStr); persistErr != nil {
+				slog.Warn("failed to persist execution failure_json", "error", persistErr)
+			}
+
 			return e.failExecution(ctx, execution.ID, fmt.Sprintf("node %s execution failed: %s", node.ID, errStr))
 		}
 
@@ -281,6 +324,7 @@ func (e *Engine) ExecuteWorkflow(ctx context.Context, execution domain.Execution
 			Data:        completionPayload,
 			Timestamp:   time.Now(),
 		})
+		cancelTimeout()
 	}
 
 	// 4. Atomically mark execution completed with cost/tokens

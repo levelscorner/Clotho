@@ -56,6 +56,14 @@ type AgentNodeConfig struct {
 	FrequencyPenalty *float64 `json:"frequency_penalty,omitempty"`
 	PresencePenalty  *float64 `json:"presence_penalty,omitempty"`
 
+	// Reliability knobs. StepTimeoutSec overrides the engine default
+	// (120s) on a per-node basis for nodes that legitimately take longer
+	// (e.g. reasoning models). MaxRetries overrides the default 3-attempt
+	// retry budget when a failure is classified as retryable; 0 means
+	// "use the engine default".
+	StepTimeoutSec *int `json:"step_timeout_sec,omitempty"`
+	MaxRetries     *int `json:"max_retries,omitempty"`
+
 	// PresetCategory is a dispatch key used by the frontend to render
 	// specialized node styling/behavior. Valid values: "script", "crafter",
 	// or empty (generic). Populated when an agent node is created from a

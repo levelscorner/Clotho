@@ -27,10 +27,10 @@ Source: `web/src/lib/types.ts` `PortType` union + `internal/domain/node.go` cons
 ```
                   TARGET
                   text  img_p  vid_p  aud_p  image  video  audio  json   any
-         text  │   ✓      ✗      ✗      ✗      ✗      ✗      ✗      ✗     ✓
-SOURCE  img_p  │   ✓      ✓      ✗      ✗      ✗      ✗      ✗      ✗     ✓
-        vid_p  │   ✓      ✗      ✓      ✗      ✗      ✗      ✗      ✗     ✓
-        aud_p  │   ✓      ✗      ✗      ✓      ✗      ✗      ✗      ✗     ✓
+         text  │   ✓      ✓      ✓      ✓      ✗      ✗      ✗      ✗     ✓
+SOURCE  img_p  │   ✓      ✓      ✓      ✓      ✗      ✗      ✗      ✗     ✓
+        vid_p  │   ✓      ✓      ✓      ✓      ✗      ✗      ✗      ✗     ✓
+        aud_p  │   ✓      ✓      ✓      ✓      ✗      ✗      ✗      ✗     ✓
         image  │   ✗      ✗      ✗      ✗      ✓      ✗      ✗      ✗     ✓
         video  │   ✗      ✗      ✗      ✗      ✗      ✓      ✗      ✗     ✓
         audio  │   ✗      ✗      ✗      ✗      ✗      ✗      ✓      ✗     ✓
@@ -40,10 +40,10 @@ SOURCE  img_p  │   ✓      ✓      ✗      ✗      ✗      ✗      ✗  
 
 Rule summary:
 
-- **Prompt subtypes → text OR their own type.** `image_prompt` into a `text` input is legal (same underlying string), so downstream agents can polish a prompt.
+- **Text family is one interchangeable group.** `text`, `image_prompt`, `video_prompt`, and `audio_prompt` all carry strings; a Prompt agent's `text` output can feed any media node's prompt input, and prompt specializations can flow into generic text agents. Downstream agents route behavior from their own `task_type`, not from the incoming specialization.
 - **Media outputs are hermetic.** `image → video` is rejected; cross-media remixing is an explicit executor's job, not free piping.
 - **`any` accepts everything.** Used for optional reference inputs on Media nodes and the palette-default agent input.
-- **`json` is pair-only.** It's a structured-data channel; connect only json→json or json→any.
+- **`json` is pair-only.** It's a structured-data channel; connect only json→json or json→any. If you need to flatten JSON into text, set the upstream agent's `output_type` to `text`.
 
 Enforcement:
 

@@ -63,6 +63,70 @@ func TestBuildUserPrompt(t *testing.T) {
 	}
 }
 
+func TestSubstituteVariables(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		in   string
+		vars map[string]string
+		want string
+	}{
+		{
+			name: "single replacement",
+			in:   "Write for {{name}}.",
+			vars: map[string]string{"name": "Levi"},
+			want: "Write for Levi.",
+		},
+		{
+			name: "multiple replacements",
+			in:   "Write for {{name}} about {{topic}}.",
+			vars: map[string]string{"name": "Levi", "topic": "lighthouses"},
+			want: "Write for Levi about lighthouses.",
+		},
+		{
+			name: "undefined var stays literal so {{input}} keeps working downstream",
+			in:   "Hello {{name}}, data: {{input}}",
+			vars: map[string]string{"name": "Alex"},
+			want: "Hello Alex, data: {{input}}",
+		},
+		{
+			name: "empty vars map returns input unchanged",
+			in:   "No {{var}} replacement",
+			vars: nil,
+			want: "No {{var}} replacement",
+		},
+		{
+			name: "empty input returns empty",
+			in:   "",
+			vars: map[string]string{"x": "y"},
+			want: "",
+		},
+		{
+			name: "empty var name is ignored",
+			in:   "Value: {{}}",
+			vars: map[string]string{"": "nope"},
+			want: "Value: {{}}",
+		},
+		{
+			name: "repeated var replaced everywhere",
+			in:   "{{x}} + {{x}} = 2{{x}}",
+			vars: map[string]string{"x": "7"},
+			want: "7 + 7 = 27",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := substituteVariables(tt.in, tt.vars)
+			if got != tt.want {
+				t.Errorf("substituteVariables(%q, %v) = %q, want %q", tt.in, tt.vars, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestConcatenateInputs(t *testing.T) {
 	t.Parallel()
 

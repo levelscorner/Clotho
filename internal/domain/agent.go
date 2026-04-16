@@ -34,6 +34,10 @@ type TaskConfig struct {
 
 // AgentNodeConfig is the configuration for an agent node.
 // This is stored as JSON in NodeInstance.Config.
+//
+// Sampling knobs beyond Temperature/MaxTokens are nullable pointers so that
+// "unset — use provider default" is distinguishable from "explicitly zero".
+// Provider adapters drop fields they don't honor (see internal/llm/capabilities.go).
 type AgentNodeConfig struct {
 	Provider     string     `json:"provider"`
 	Model        string     `json:"model"`
@@ -43,6 +47,15 @@ type AgentNodeConfig struct {
 	MaxTokens    int        `json:"max_tokens"`
 	CostCap      *float64   `json:"cost_cap,omitempty"`
 	CredentialID string     `json:"credential_id,omitempty"`
+
+	// Near-universal sampling knobs. All optional.
+	TopP             *float64 `json:"top_p,omitempty"`
+	TopK             *int     `json:"top_k,omitempty"`
+	StopSequences    []string `json:"stop_sequences,omitempty"`
+	Seed             *int     `json:"seed,omitempty"`
+	FrequencyPenalty *float64 `json:"frequency_penalty,omitempty"`
+	PresencePenalty  *float64 `json:"presence_penalty,omitempty"`
+
 	// PresetCategory is a dispatch key used by the frontend to render
 	// specialized node styling/behavior. Valid values: "script", "crafter",
 	// or empty (generic). Populated when an agent node is created from a

@@ -4,11 +4,14 @@ import type { PortType } from './types';
 // Which target port types a given source port type can connect to.
 // ---------------------------------------------------------------------------
 
+// Text family (text, image_prompt, video_prompt, audio_prompt) is a single
+// interchangeable group — all four carry strings. Media is hermetic. json
+// is pair-only. See internal/domain/edge.go for the authoritative comment.
 const COMPATIBILITY: Record<PortType, readonly PortType[]> = {
-  text:         ['text', 'any'],
-  image_prompt: ['image_prompt', 'text', 'any'],
-  video_prompt: ['video_prompt', 'text', 'any'],
-  audio_prompt: ['audio_prompt', 'text', 'any'],
+  text:         ['text', 'image_prompt', 'video_prompt', 'audio_prompt', 'any'],
+  image_prompt: ['text', 'image_prompt', 'video_prompt', 'audio_prompt', 'any'],
+  video_prompt: ['text', 'image_prompt', 'video_prompt', 'audio_prompt', 'any'],
+  audio_prompt: ['text', 'image_prompt', 'video_prompt', 'audio_prompt', 'any'],
   image:        ['image', 'any'],
   video:        ['video', 'any'],
   audio:        ['audio', 'any'],

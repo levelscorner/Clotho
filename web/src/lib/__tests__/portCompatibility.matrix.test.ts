@@ -24,20 +24,21 @@ const types: PortType[] = [
 ];
 
 const expected: Record<PortType, Record<PortType, boolean>> = {
+  // Text family (text + *_prompt) is one interchangeable group.
   text: {
-    text: true, image_prompt: false, video_prompt: false, audio_prompt: false,
+    text: true, image_prompt: true, video_prompt: true, audio_prompt: true,
     image: false, video: false, audio: false, json: false, any: true,
   },
   image_prompt: {
-    text: true, image_prompt: true, video_prompt: false, audio_prompt: false,
+    text: true, image_prompt: true, video_prompt: true, audio_prompt: true,
     image: false, video: false, audio: false, json: false, any: true,
   },
   video_prompt: {
-    text: true, image_prompt: false, video_prompt: true, audio_prompt: false,
+    text: true, image_prompt: true, video_prompt: true, audio_prompt: true,
     image: false, video: false, audio: false, json: false, any: true,
   },
   audio_prompt: {
-    text: true, image_prompt: false, video_prompt: false, audio_prompt: true,
+    text: true, image_prompt: true, video_prompt: true, audio_prompt: true,
     image: false, video: false, audio: false, json: false, any: true,
   },
   image: {
@@ -81,9 +82,14 @@ describe('portCompatibility — 81-cell matrix', () => {
   });
 
   describe('key invariants', () => {
-    it('prompt subtypes degrade to text', () => {
-      for (const p of ['image_prompt', 'video_prompt', 'audio_prompt'] as PortType[]) {
-        expect(canConnect(p, 'text'), `${p} → text`).toBe(true);
+    it('text family is fully interchangeable', () => {
+      const family: PortType[] = [
+        'text', 'image_prompt', 'video_prompt', 'audio_prompt',
+      ];
+      for (const a of family) {
+        for (const b of family) {
+          expect(canConnect(a, b), `${a} → ${b}`).toBe(true);
+        }
       }
     });
 

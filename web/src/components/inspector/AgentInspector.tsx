@@ -13,6 +13,9 @@ import { InspectorGroup } from './InspectorGroup';
 import { AboutNodeSection } from './AboutNodeSection';
 import { describeNode } from '../../lib/nodeDescriptions';
 import { OllamaModelDropdown } from './OllamaModelDropdown';
+import { VariablesSection } from './sections/VariablesSection';
+import { SamplingSection } from './sections/SamplingSection';
+import { fieldGroup, inputStyle, labelStyle, textareaStyle } from './sections/sectionStyles';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -45,36 +48,6 @@ const PORT_TYPES: PortType[] = [
 // ---------------------------------------------------------------------------
 // Styles
 // ---------------------------------------------------------------------------
-
-const fieldGroup: React.CSSProperties = {
-  marginBottom: 12,
-};
-
-const labelStyle: React.CSSProperties = {
-  display: 'block',
-  fontSize: 11,
-  fontWeight: 600,
-  color: 'var(--text-muted)',
-  marginBottom: 4,
-  textTransform: 'uppercase',
-  letterSpacing: '0.04em',
-};
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '6px 8px',
-  borderRadius: 'var(--radius-sm)',
-  border: '1px solid var(--surface-border)',
-  background: 'var(--surface-base)',
-  color: 'var(--text-primary)',
-  fontSize: 13,
-};
-
-const textareaStyle: React.CSSProperties = {
-  ...inputStyle,
-  minHeight: 140,
-  resize: 'vertical',
-};
 
 const warningBadgeStyle: React.CSSProperties = {
   display: 'inline-block',
@@ -109,11 +82,11 @@ interface AgentInspectorProps {
 }
 
 /**
- * Heuristic: does the step error plausibly relate to an Advanced field
- * (model name, credential/API key)? Used to auto-expand the Advanced group
- * when an execution fails for a reason the user can fix there.
+ * Heuristic: does the step error plausibly relate to the Credentials group
+ * (model name, credential/API key)? Used to auto-expand it when an execution
+ * fails for a reason the user can fix there.
  */
-function errorImplicatesAdvanced(step?: StepResult): boolean {
+function errorImplicatesCredentials(step?: StepResult): boolean {
   if (!step || step.status !== 'failed' || !step.error) return false;
   const e = step.error.toLowerCase();
   return (
@@ -137,7 +110,8 @@ export function AgentInspector({ nodeId, label, config, stepResult }: AgentInspe
   const [credentials, setCredentials] = useState<Credential[]>([]);
 
   useEffect(() => {
-    api.get<ProviderInfo[]>('/providers')
+    api
+      .get<ProviderInfo[]>('/providers')
       .then((data) => {
         setProviders(Array.isArray(data) ? data : []);
         setProvidersLoaded(true);
@@ -220,12 +194,9 @@ export function AgentInspector({ nodeId, label, config, stepResult }: AgentInspe
         </div>
       )}
 
-      <AboutNodeSection
-        description={describeNode({
-          nodeType: 'agent',
-        })}
-      />
+      <AboutNodeSection description={describeNode({ nodeType: 'agent' })} />
 
+      {/* Basics — label, prompt, provider, model, system prompt, persona */}
       <InspectorGroup title="Basics" defaultOpen>
         <div style={fieldGroup}>
           <label style={labelStyle}>Label</label>
@@ -253,7 +224,7 @@ export function AgentInspector({ nodeId, label, config, stepResult }: AgentInspe
               color: 'var(--text-muted)',
             }}
           >
-            Use {'{{input}}'} to reference incoming data.
+            Use {'{{input}}'} for upstream data. Add named vars below.
           </div>
         </div>
 
@@ -318,9 +289,59 @@ export function AgentInspector({ nodeId, label, config, stepResult }: AgentInspe
         </div>
       </InspectorGroup>
 
+      {/* Variables — {{name}} substitution across prompts */}
+      <VariablesSection
+        variables={config.role.variables}
+        onChange={updateRole}
+      />
+
+      {/* Sampling — temperature + top-p/top-k/seed/penalties, gated */}
+      <SamplingSection config={config} onChange={update} />
+
+      {/* Task routing — kept in its own collapsed group since users
+          rarely touch task_type/output_type after initial setup */}
+      <InspectorGroup title="Task Routing">
+        <div style={fieldGroup}>
+          <label style={labelStyle}>Task Type</label>
+          <input
+            list="clotho-task-types"
+            style={inputStyle}
+            value={config.task.task_type}
+            onChange={(e) =>
+              updateTask({ task_type: e.target.value as TaskType })
+            }
+            placeholder="Type or select..."
+          />
+          <datalist id="clotho-task-types">
+            {TASK_TYPES.map((t) => (
+              <option key={t} value={t} />
+            ))}
+          </datalist>
+        </div>
+
+        <div style={fieldGroup}>
+          <label style={labelStyle}>Output Type</label>
+          <input
+            list="clotho-output-types"
+            style={inputStyle}
+            value={config.task.output_type}
+            onChange={(e) =>
+              updateTask({ output_type: e.target.value as PortType })
+            }
+            placeholder="Type or select..."
+          />
+          <datalist id="clotho-output-types">
+            {PORT_TYPES.map((t) => (
+              <option key={t} value={t} />
+            ))}
+          </datalist>
+        </div>
+      </InspectorGroup>
+
+      {/* Credentials & Cost — API key selection + cost cap */}
       <InspectorGroup
-        title="Advanced"
-        forceOpen={errorImplicatesAdvanced(stepResult)}
+        title="Credentials & Cost"
+        forceOpen={errorImplicatesCredentials(stepResult)}
       >
         <div style={fieldGroup}>
           <label style={labelStyle}>API Key</label>
@@ -363,69 +384,25 @@ export function AgentInspector({ nodeId, label, config, stepResult }: AgentInspe
         </div>
 
         <div style={fieldGroup}>
-          <label style={labelStyle}>
-            Temperature: {config.temperature.toFixed(1)}
-          </label>
-          <input
-            type="range"
-            min={0}
-            max={2}
-            step={0.1}
-            value={config.temperature}
-            onChange={(e) => update({ temperature: parseFloat(e.target.value) })}
-            style={{ width: '100%' }}
-          />
-        </div>
-
-        <div style={fieldGroup}>
-          <label style={labelStyle}>Max Tokens</label>
+          <label style={labelStyle}>Cost Cap (USD)</label>
           <input
             type="number"
             style={inputStyle}
-            value={config.max_tokens}
-            min={1}
-            onChange={(e) =>
-              update({ max_tokens: parseInt(e.target.value, 10) || 1 })
-            }
+            min={0}
+            step={0.01}
+            placeholder="no cap"
+            value={config.cost_cap ?? ''}
+            onChange={(e) => {
+              const raw = e.target.value;
+              if (raw === '') {
+                update({ cost_cap: undefined });
+                return;
+              }
+              const n = parseFloat(raw);
+              if (Number.isFinite(n)) update({ cost_cap: n });
+            }}
           />
         </div>
-
-        <div style={fieldGroup}>
-          <label style={labelStyle}>Task Type</label>
-          <input
-            list="clotho-task-types"
-            style={inputStyle}
-            value={config.task.task_type}
-            onChange={(e) =>
-              updateTask({ task_type: e.target.value as TaskType })
-            }
-            placeholder="Type or select..."
-          />
-          <datalist id="clotho-task-types">
-            {TASK_TYPES.map((t) => (
-              <option key={t} value={t} />
-            ))}
-          </datalist>
-        </div>
-
-        <div style={fieldGroup}>
-          <label style={labelStyle}>Output Type</label>
-          <input
-            list="clotho-output-types"
-            style={inputStyle}
-            value={config.task.output_type}
-            onChange={(e) =>
-              updateTask({ output_type: e.target.value as PortType })
-            }
-            placeholder="Type or select..."
-          />
-          <datalist id="clotho-output-types">
-            {PORT_TYPES.map((t) => (
-              <option key={t} value={t} />
-            ))}
-          </datalist>
-        </div>
-
       </InspectorGroup>
     </div>
   );

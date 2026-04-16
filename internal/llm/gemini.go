@@ -13,7 +13,9 @@ import (
 	"github.com/user/clotho/internal/util/redact"
 )
 
-const geminiBaseURL = "https://generativelanguage.googleapis.com/v1beta/models"
+// geminiBaseURL is a var (not const) so integration tests can redirect
+// traffic at an httptest.Server without a build-tag dance.
+var geminiBaseURL = "https://generativelanguage.googleapis.com/v1beta/models"
 
 // GeminiProvider implements Provider using the Google AI Studio REST API.
 type GeminiProvider struct {
@@ -45,8 +47,14 @@ type geminiPart struct {
 }
 
 type geminiGenConfig struct {
-	Temperature     float64 `json:"temperature"`
-	MaxOutputTokens int     `json:"maxOutputTokens"`
+	Temperature      float64  `json:"temperature"`
+	MaxOutputTokens  int      `json:"maxOutputTokens"`
+	TopP             *float64 `json:"topP,omitempty"`
+	TopK             *int     `json:"topK,omitempty"`
+	StopSequences    []string `json:"stopSequences,omitempty"`
+	Seed             *int     `json:"seed,omitempty"`
+	FrequencyPenalty *float64 `json:"frequencyPenalty,omitempty"`
+	PresencePenalty  *float64 `json:"presencePenalty,omitempty"`
 }
 
 // geminiResponse is the response from the Gemini generateContent API.
@@ -182,14 +190,41 @@ func (p *GeminiProvider) ListModels() []string {
 }
 
 func (p *GeminiProvider) buildRequestBody(req CompletionRequest) geminiRequest {
+	caps := CapabilitiesFor("gemini")
+
+	gc := geminiGenConfig{
+		Temperature:     req.Temperature,
+		MaxOutputTokens: req.MaxTokens,
+	}
+	if req.TopP != nil {
+		v := *req.TopP
+		gc.TopP = &v
+	}
+	if caps.TopK && req.TopK != nil {
+		v := *req.TopK
+		gc.TopK = &v
+	}
+	if caps.StopSequences && len(req.StopSequences) > 0 {
+		gc.StopSequences = req.StopSequences
+	}
+	if caps.Seed && req.Seed != nil {
+		v := *req.Seed
+		gc.Seed = &v
+	}
+	if caps.FrequencyPenalty && req.FrequencyPenalty != nil {
+		v := *req.FrequencyPenalty
+		gc.FrequencyPenalty = &v
+	}
+	if caps.PresencePenalty && req.PresencePenalty != nil {
+		v := *req.PresencePenalty
+		gc.PresencePenalty = &v
+	}
+
 	gr := geminiRequest{
 		Contents: []geminiContent{
 			{Parts: []geminiPart{{Text: req.UserPrompt}}},
 		},
-		GenerationConfig: geminiGenConfig{
-			Temperature:     req.Temperature,
-			MaxOutputTokens: req.MaxTokens,
-		},
+		GenerationConfig: gc,
 	}
 
 	if req.SystemPrompt != "" {

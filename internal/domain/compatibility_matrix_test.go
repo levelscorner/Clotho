@@ -9,7 +9,8 @@ import "testing"
 // together with the behaviour.
 //
 // The matrix encodes the rules:
-//   - Prompt subtypes degrade to text (e.g., image_prompt → text).
+//   - Text family (text, image_prompt, video_prompt, audio_prompt) is
+//     one interchangeable group — every pair within the family connects.
 //   - Media outputs are hermetic (image → video is rejected).
 //   - json pairs only with itself or any.
 //   - any accepts everything; nothing but any → X has any as source in
@@ -33,22 +34,22 @@ func TestCanConnect_81CellMatrix(t *testing.T) {
 	// stale, compat rules have drifted.
 	expected := map[PortType]map[PortType]bool{
 		PortTypeText: {
-			PortTypeText: true, PortTypeImagePrompt: false, PortTypeVideoPrompt: false,
-			PortTypeAudioPrompt: false, PortTypeImage: false, PortTypeVideo: false,
+			PortTypeText: true, PortTypeImagePrompt: true, PortTypeVideoPrompt: true,
+			PortTypeAudioPrompt: true, PortTypeImage: false, PortTypeVideo: false,
 			PortTypeAudio: false, PortTypeJSON: false, PortTypeAny: true,
 		},
 		PortTypeImagePrompt: {
-			PortTypeText: true, PortTypeImagePrompt: true, PortTypeVideoPrompt: false,
-			PortTypeAudioPrompt: false, PortTypeImage: false, PortTypeVideo: false,
+			PortTypeText: true, PortTypeImagePrompt: true, PortTypeVideoPrompt: true,
+			PortTypeAudioPrompt: true, PortTypeImage: false, PortTypeVideo: false,
 			PortTypeAudio: false, PortTypeJSON: false, PortTypeAny: true,
 		},
 		PortTypeVideoPrompt: {
-			PortTypeText: true, PortTypeImagePrompt: false, PortTypeVideoPrompt: true,
-			PortTypeAudioPrompt: false, PortTypeImage: false, PortTypeVideo: false,
+			PortTypeText: true, PortTypeImagePrompt: true, PortTypeVideoPrompt: true,
+			PortTypeAudioPrompt: true, PortTypeImage: false, PortTypeVideo: false,
 			PortTypeAudio: false, PortTypeJSON: false, PortTypeAny: true,
 		},
 		PortTypeAudioPrompt: {
-			PortTypeText: true, PortTypeImagePrompt: false, PortTypeVideoPrompt: false,
+			PortTypeText: true, PortTypeImagePrompt: true, PortTypeVideoPrompt: true,
 			PortTypeAudioPrompt: true, PortTypeImage: false, PortTypeVideo: false,
 			PortTypeAudio: false, PortTypeJSON: false, PortTypeAny: true,
 		},
@@ -104,10 +105,15 @@ func TestCanConnect_81CellMatrix(t *testing.T) {
 // TestCanConnect_KeyInvariants spells out the rules a reader cares about
 // more readable-language than the matrix. Fails if any invariant drifts.
 func TestCanConnect_KeyInvariants(t *testing.T) {
-	t.Run("prompt subtypes degrade to text", func(t *testing.T) {
-		for _, p := range []PortType{PortTypeImagePrompt, PortTypeVideoPrompt, PortTypeAudioPrompt} {
-			if !CanConnect(p, PortTypeText) {
-				t.Errorf("%q should connect to text (prompt subtype rule)", p)
+	t.Run("text family is fully interchangeable", func(t *testing.T) {
+		family := []PortType{
+			PortTypeText, PortTypeImagePrompt, PortTypeVideoPrompt, PortTypeAudioPrompt,
+		}
+		for _, a := range family {
+			for _, b := range family {
+				if !CanConnect(a, b) {
+					t.Errorf("%q → %q should be allowed (text family rule)", a, b)
+				}
 			}
 		}
 	})

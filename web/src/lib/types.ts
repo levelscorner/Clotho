@@ -81,6 +81,15 @@ export interface AgentNodeConfig {
   max_tokens: number;
   cost_cap?: number;
   credential_id?: string;
+
+  // Near-universal sampling knobs — optional, provider-gated via
+  // web/src/lib/llmCapabilities.ts. Undefined means "use provider default".
+  top_p?: number;
+  top_k?: number;
+  stop_sequences?: string[];
+  seed?: number;
+  frequency_penalty?: number;
+  presence_penalty?: number;
 }
 
 export interface ToolNodeConfig {

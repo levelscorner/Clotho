@@ -81,7 +81,7 @@ describe('AgentInspector — Prompt field promoted to Basics', () => {
     expect(textarea?.value).toBe('Write a scene based on {{input}}.');
   });
 
-  it('does not duplicate the Prompt field in the Advanced group', () => {
+  it('does not duplicate the Prompt field outside Basics', () => {
     render(
       <AgentInspector
         nodeId="node_1"
@@ -90,21 +90,21 @@ describe('AgentInspector — Prompt field promoted to Basics', () => {
       />,
     );
 
-    const advancedSummary = screen.getByText('Advanced');
-    const advancedGroup = advancedSummary.closest('details');
-    expect(advancedGroup).not.toBeNull();
+    // Prompt Component redesign moved the old "Advanced" group into
+    // three: "Sampling", "Task Routing", and "Credentials & Cost".
+    // None of them should carry a duplicate Prompt/Template field.
+    for (const title of ['Sampling', 'Task Routing', 'Credentials & Cost']) {
+      const summary = screen.getByText(title);
+      const group = summary.closest('details') as HTMLElement | null;
+      expect(group, `${title} group missing`).not.toBeNull();
 
-    // The old "Template" label should be gone from Advanced.
-    const templateInAdvanced = within(advancedGroup as HTMLElement).queryByText(
-      /^Template$/,
-    );
-    expect(templateInAdvanced).toBeNull();
-
-    // And the "Prompt" label should not exist inside Advanced either.
-    const promptInAdvanced = within(advancedGroup as HTMLElement).queryByText(
-      /^Prompt$/,
-    );
-    expect(promptInAdvanced).toBeNull();
+      expect(
+        within(group as HTMLElement).queryByText(/^Template$/),
+      ).toBeNull();
+      expect(
+        within(group as HTMLElement).queryByText(/^Prompt$/),
+      ).toBeNull();
+    }
   });
 
   it('orders Prompt before Persona in Basics DOM order', () => {
@@ -137,8 +137,10 @@ describe('AgentInspector — Prompt field promoted to Basics', () => {
       />,
     );
 
+    // Helper text below the Prompt field should reference {{input}}.
+    // Exact copy is free to evolve; anchor on the specific phrase.
     expect(
-      screen.getByText(/Use \{\{input\}\} to reference incoming data\./),
+      screen.getByText(/for upstream data\./),
     ).toBeInTheDocument();
   });
 });

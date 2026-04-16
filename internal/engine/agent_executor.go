@@ -34,14 +34,17 @@ func (e *AgentExecutor) Execute(ctx context.Context, node domain.NodeInstance, i
 		return StepOutput{}, fmt.Errorf("agent executor: unmarshal config: %w", err)
 	}
 
-	// Build system prompt from role config
-	systemPrompt := cfg.Role.SystemPrompt
+	// Build system prompt from role config — apply {{var}} interpolation
+	// from cfg.Role.Variables so users can template across system + user.
+	systemPrompt := substituteVariables(cfg.Role.SystemPrompt, cfg.Role.Variables)
 	if cfg.Role.Persona != "" {
 		systemPrompt = systemPrompt + "\n\nPersona: " + cfg.Role.Persona
 	}
 
-	// Build user prompt from task template + inputs
-	userPrompt := buildUserPrompt(cfg.Task.Template, inputs)
+	// Build user prompt from task template + inputs (template variables
+	// substituted first so {{input}} remains the only late-bound token).
+	template := substituteVariables(cfg.Task.Template, cfg.Role.Variables)
+	userPrompt := buildUserPrompt(template, inputs)
 
 	model := cfg.Model
 	if model == "" {
@@ -86,11 +89,17 @@ func (e *AgentExecutor) Execute(ctx context.Context, node domain.NodeInstance, i
 	}
 
 	resp, err := provider.Complete(ctx, llm.CompletionRequest{
-		Model:        model,
-		SystemPrompt: systemPrompt,
-		UserPrompt:   userPrompt,
-		Temperature:  temperature,
-		MaxTokens:    maxTokens,
+		Model:            model,
+		SystemPrompt:     systemPrompt,
+		UserPrompt:       userPrompt,
+		Temperature:      temperature,
+		MaxTokens:        maxTokens,
+		TopP:             cfg.TopP,
+		TopK:             cfg.TopK,
+		StopSequences:    cfg.StopSequences,
+		Seed:             cfg.Seed,
+		FrequencyPenalty: cfg.FrequencyPenalty,
+		PresencePenalty:  cfg.PresencePenalty,
 	})
 	if err != nil {
 		return StepOutput{}, fmt.Errorf("agent executor: llm complete: %w", err)
@@ -117,7 +126,7 @@ func (e *AgentExecutor) Execute(ctx context.Context, node domain.NodeInstance, i
 
 // resolveProvider extracts common prompt-building and provider resolution logic.
 func (e *AgentExecutor) resolveProvider(ctx context.Context, cfg domain.AgentNodeConfig) (llm.Provider, llm.CompletionRequest, error) {
-	systemPrompt := cfg.Role.SystemPrompt
+	systemPrompt := substituteVariables(cfg.Role.SystemPrompt, cfg.Role.Variables)
 	if cfg.Role.Persona != "" {
 		systemPrompt = systemPrompt + "\n\nPersona: " + cfg.Role.Persona
 	}
@@ -163,10 +172,16 @@ func (e *AgentExecutor) resolveProvider(ctx context.Context, cfg domain.AgentNod
 	}
 
 	req := llm.CompletionRequest{
-		Model:        model,
-		SystemPrompt: systemPrompt,
-		Temperature:  temperature,
-		MaxTokens:    maxTokens,
+		Model:            model,
+		SystemPrompt:     systemPrompt,
+		Temperature:      temperature,
+		MaxTokens:        maxTokens,
+		TopP:             cfg.TopP,
+		TopK:             cfg.TopK,
+		StopSequences:    cfg.StopSequences,
+		Seed:             cfg.Seed,
+		FrequencyPenalty: cfg.FrequencyPenalty,
+		PresencePenalty:  cfg.PresencePenalty,
 	}
 	return provider, req, nil
 }
@@ -206,7 +221,8 @@ func (e *AgentExecutor) ExecuteStream(ctx context.Context, node domain.NodeInsta
 			return
 		}
 
-		userPrompt := buildUserPrompt(cfg.Task.Template, inputs)
+		template := substituteVariables(cfg.Task.Template, cfg.Role.Variables)
+		userPrompt := buildUserPrompt(template, inputs)
 		req.UserPrompt = userPrompt
 
 		stream, err := provider.Stream(ctx, req)
@@ -250,6 +266,24 @@ func (e *AgentExecutor) ExecuteStream(ctx context.Context, node domain.NodeInsta
 	}()
 
 	return chunks, result, errCh
+}
+
+// substituteVariables replaces every `{{name}}` occurrence in s with the
+// matching entry from vars. Undefined keys stay literal — callers depend
+// on this so `{{input}}` can continue to late-bind upstream step data
+// inside buildUserPrompt after variables have been resolved.
+func substituteVariables(s string, vars map[string]string) string {
+	if s == "" || len(vars) == 0 {
+		return s
+	}
+	out := s
+	for name, value := range vars {
+		if name == "" {
+			continue
+		}
+		out = strings.ReplaceAll(out, "{{"+name+"}}", value)
+	}
+	return out
 }
 
 // buildUserPrompt renders the task template with input data.
